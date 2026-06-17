@@ -16,3 +16,5 @@ derby.log
 .cursor
 .history
 .claude
+/openspec/
+/.codex/

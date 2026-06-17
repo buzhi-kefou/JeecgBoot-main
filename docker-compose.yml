@@ -37,7 +37,7 @@ services:
       context: ./jeecg-boot/jeecg-module-system/jeecg-system-start
     restart: on-failure
     depends_on:
-      - jeecg-boot-mysql
+#      - jeecg-boot-mysql
       - jeecg-boot-redis
     container_name: jeecg-boot-system
     image: jeecg-boot-system

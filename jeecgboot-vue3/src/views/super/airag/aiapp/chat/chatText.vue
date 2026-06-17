@@ -40,7 +40,7 @@
 <script setup lang="ts">
   import type { JeecgTag } from './jeecg-tags/types';
   import { computed, nextTick, onMounted, onUnmounted, onUpdated, ref, watch } from 'vue';
-  import * as lodash from 'lodash';
+  import * as lodash from 'lodash-es';
   import md5 from 'crypto-js/md5';
   import MarkdownIt from 'markdown-it';
   import mdKatex from '@traptitech/markdown-it-katex';
