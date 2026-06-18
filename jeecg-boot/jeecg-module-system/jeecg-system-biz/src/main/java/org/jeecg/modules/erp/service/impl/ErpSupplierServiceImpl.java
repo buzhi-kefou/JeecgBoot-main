@@ -38,10 +38,7 @@ public class ErpSupplierServiceImpl extends ServiceImpl<ErpSupplierEntityMapper,
                 log.error("日期格式错误，请使用yyyy-MM-dd格式");
                 return null;
             }
-            if (StrUtil.isNotBlank(filterString)) {
-                filterString += " and ";
-            }
-            filterString += ("FModifyDate <='" + beginDateStr + "'");
+            filterString += ("FModifyDate >='" + beginDateStr + " 00:00:00'");
         }
 
         if (StrUtil.isNotBlank(endDateStr)) {
@@ -52,7 +49,10 @@ public class ErpSupplierServiceImpl extends ServiceImpl<ErpSupplierEntityMapper,
                 log.error("日期格式错误，请使用yyyy-MM-dd格式");
                 return null;
             }
-            filterString += ("FModifyDate >='" + endDateStr + "'");
+            if (StrUtil.isNotBlank(filterString)) {
+                filterString += " and ";
+            }
+            filterString += ("FModifyDate <='" + endDateStr + " 23:59:59'");
         }
 
         QueryDetailDto detailDto = new QueryDetailDto();
