@@ -60,7 +60,7 @@ public class ErpPurchaseAdjustmentEntity extends ErpCommonEntity {
     /**
      * 调价原因（必填项）
      */
-    @JsonProperty("FPaReason")
+    @JsonProperty("FPaReason.fdatavalue")
     private String paReason;
 
     /**

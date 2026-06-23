@@ -16,7 +16,7 @@ public class ErpSupplierEntity extends ErpCommonEntity {
      */
     @JsonProperty("FSupplierId")
     @TableId
-    private Long supplierId;
+    private String supplierId;
 
     /**
      * 数据状态

@@ -2,18 +2,17 @@ package org.jeecg.modules.erp.controller;
 
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.jeecg.common.api.vo.Result;
-import org.jeecg.modules.erp.entity.ErpMaterialEntity;
-import org.jeecg.modules.erp.entity.ErpPurchaseAdjustmentEntity;
-import org.jeecg.modules.erp.entity.ErpSupplierEntity;
-import org.jeecg.modules.erp.service.IErpAuthService;
-import org.jeecg.modules.erp.service.IErpMaterialService;
-import org.jeecg.modules.erp.service.IErpPurchaseAdjustmentService;
-import org.jeecg.modules.erp.service.IErpSupplierService;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.jeecg.modules.erp.dto.MaterialSupplierPriceQuery;
+import org.jeecg.modules.erp.dto.MaterialQuery;
+import org.jeecg.modules.erp.dto.OrgQuery;
+import org.jeecg.modules.erp.service.*;
+import org.jeecg.modules.erp.vo.MaterialSupplierPriceVo;
+import org.jeecg.modules.erp.vo.MaterialVo;
+import org.jeecg.modules.erp.vo.OrgVo;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -33,6 +32,9 @@ public class ErpPurchaseAdjustmentController {
 
     @Resource
     private IErpSupplierService erpSupplierService;
+
+    @Resource
+    private IErpOrgService erpOrgService;
 
     @PostMapping("/testAuth")
     public Result<String> testAuth() {
@@ -56,4 +58,26 @@ public class ErpPurchaseAdjustmentController {
                                          @RequestParam(value = "endStr", required = false) String endStr) {
         return Result.ok(erpSupplierService.queryByDate(beginStr, endStr).size());
     }
+
+    @PostMapping("/queryOrg")
+    public Result<Integer> queryOrg(@RequestParam(value = "beginStr", required = false) String beginStr,
+                                         @RequestParam(value = "endStr", required = false) String endStr) {
+        return Result.ok(erpOrgService.queryByDate(beginStr, endStr).size());
+    }
+
+    @PostMapping("/queryMaterialSupplierPrice")
+    public Result<Page<MaterialSupplierPriceVo>> queryMaterialSupplierPrice(@RequestBody @Validated MaterialSupplierPriceQuery query) {
+        return Result.ok(erpPurchaseAdjustmentService.queryMaterialSupplierPrice(query));
+    }
+
+    @PostMapping("/getMaterialCodeList")
+    public Result<List<MaterialVo>> getMaterialCodeList(@RequestBody @Validated MaterialQuery query) {
+        return Result.ok(erpPurchaseAdjustmentService.getMaterialCodeList(query));
+    }
+
+    @PostMapping("/getOrgList")
+    public Result<Page<OrgVo>> getOrgList(@RequestBody OrgQuery query) {
+        return Result.ok(erpOrgService.getOrgList(query));
+    }
+
 }
