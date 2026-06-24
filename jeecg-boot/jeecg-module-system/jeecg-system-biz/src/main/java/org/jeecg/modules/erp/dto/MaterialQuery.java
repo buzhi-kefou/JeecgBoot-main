@@ -14,6 +14,11 @@ public class MaterialQuery {
     /**
      * 物料编码或物料名称
      */
-    @NotBlank(message = "查询关键词不能为空")
+//    @NotBlank(message = "查询关键词不能为空")
     private String keyword;
+
+    /**
+     * 使用组织
+     */
+    private String useOrgId;
 }

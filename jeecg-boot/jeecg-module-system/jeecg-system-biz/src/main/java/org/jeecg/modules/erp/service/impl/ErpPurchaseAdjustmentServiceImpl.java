@@ -8,10 +8,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
-import org.jeecg.modules.erp.dto.MaterialQuery;
-import org.jeecg.modules.erp.dto.MaterialSupplierPriceQuery;
-import org.jeecg.modules.erp.dto.QueryDetailDto;
-import org.jeecg.modules.erp.dto.QueryDto;
+import org.jeecg.modules.erp.dto.*;
 import org.jeecg.modules.erp.entity.ErpMaterialEntity;
 import org.jeecg.modules.erp.entity.ErpOrgEntity;
 import org.jeecg.modules.erp.entity.ErpPurchaseAdjustmentEntity;
@@ -198,309 +195,126 @@ public class ErpPurchaseAdjustmentServiceImpl extends ServiceImpl<ErpPurchaseAdj
 
     @Override
     public Page<MaterialSupplierPriceVo> queryMaterialSupplierPrice(MaterialSupplierPriceQuery query) {
-        log.info("查询物料供应商价格，物料编码：{}，年份：{}", query.getMaterialCode(), query.getYear());
+        if (query == null || query.getYear() == null) {
+            throw new IllegalArgumentException("年份不能为空");
+        }
 
-        long pageNo = query.getPageNo() == null || query.getPageNo() < 1 ? 1 : query.getPageNo();
-        long pageSize = query.getPageSize() == null || query.getPageSize() < 1 ? 10 : query.getPageSize();
-        Page<MaterialSupplierPriceVo> resultPage = new Page<>(pageNo, pageSize);
-
+        int pageNo = query.getPageNo() == null || query.getPageNo() <= 0 ? 1 : query.getPageNo();
+        int pageSize = query.getPageSize() == null || query.getPageSize() <= 0 ? 10 : query.getPageSize();
         LocalDate yearStart = LocalDate.of(query.getYear(), 1, 1);
-        LocalDate yearEnd = LocalDate.of(query.getYear() + 1, 1, 1);
-        LocalDateTime approveEnd = yearEnd.atStartOfDay();
+        LocalDate nextYearStart = yearStart.plusYears(1);
 
-        LambdaQueryWrapper<ErpMaterialEntity> materialQueryWrapper = new LambdaQueryWrapper<>();
-        if (StrUtil.isNotBlank(query.getMaterialCode())) {
-            materialQueryWrapper.eq(ErpMaterialEntity::getNumber, query.getMaterialCode())
-                    .orderByAsc(ErpMaterialEntity::getMaterialId);
-        } else {
-            materialQueryWrapper.orderByAsc(ErpMaterialEntity::getMaterialId);
-        }
-        if (StrUtil.isNotBlank(query.getUseOrgId())) {
-            materialQueryWrapper.eq(ErpMaterialEntity::getUseOrgId, query.getUseOrgId());
-        }
-        Page<ErpMaterialEntity> materialPage = materialMapper.selectPage(new Page<>(pageNo, pageSize), materialQueryWrapper);
-        resultPage.setTotal(materialPage.getTotal());
-        List<ErpMaterialEntity> materialList = materialPage.getRecords();
-        if (CollUtil.isEmpty(materialList)) {
-            log.info("未查询到物料编码{}对应的物料", query.getMaterialCode());
-            resultPage.setRecords(List.of());
-            return resultPage;
+        List<MaterialSupplierPriceLineRow> rows = baseMapper.selectMaterialSupplierPriceRows(
+                yearStart,
+                nextYearStart,
+                query.getMaterialCode(),
+                query.getSupplierId(),
+                query.getUseOrgId()
+        );
+        if (CollUtil.isEmpty(rows)) {
+            return new Page<>(pageNo, pageSize, 0);
         }
 
-        Map<String, ErpMaterialEntity> materialMap = materialList.stream()
-                .filter(material -> material != null && material.getMaterialId() != null)
-                .collect(Collectors.toMap(
-                        material -> String.valueOf(material.getMaterialId()),
-                        material -> material,
-                        (left, right) -> left,
-                        LinkedHashMap::new
-                ));
-        if (materialMap.isEmpty()) {
-            resultPage.setRecords(List.of());
-            return resultPage;
-        }
-        Map<String, String> useOrgNameMap = buildUseOrgNameMap(materialList);
-
-        LambdaQueryWrapper<ErpPurchaseAdjustmentLineEntity> priceQueryWrapper = new LambdaQueryWrapper<>();
-        priceQueryWrapper.in(ErpPurchaseAdjustmentLineEntity::getMaterialId, materialMap.keySet())
-                .and(w -> w.and(
-                                i -> i.gt(ErpPurchaseAdjustmentLineEntity::getExpiryDate, yearStart)
-                                        .lt(ErpPurchaseAdjustmentLineEntity::getExpiryDate, yearEnd))
-                        .or(i -> i.gt(ErpPurchaseAdjustmentLineEntity::getEffectiveDate, yearStart)
-                                .lt(ErpPurchaseAdjustmentLineEntity::getEffectiveDate, yearEnd))
-                        .or(i -> i.gt(ErpPurchaseAdjustmentLineEntity::getExpiryDate, yearEnd)
-                                .lt(ErpPurchaseAdjustmentLineEntity::getEffectiveDate, yearStart)))
-
-                .orderByAsc(ErpPurchaseAdjustmentLineEntity::getMaterialId)
-                .orderByAsc(ErpPurchaseAdjustmentLineEntity::getSupplierId)
-                .orderByAsc(ErpPurchaseAdjustmentLineEntity::getEffectiveDate);
-
-        List<ErpPurchaseAdjustmentLineEntity> priceList = entryMapper.selectList(priceQueryWrapper);
-        log.info("查询到{}条价格记录", priceList.size());
-
-        if (CollUtil.isEmpty(priceList)) {
-            resultPage.setRecords(buildMaterialOnlyRecords(materialList, useOrgNameMap));
-            return resultPage;
-        }
-
-        Set<Long> headIds = priceList.stream()
-                .map(ErpPurchaseAdjustmentLineEntity::getPId)
-                .map(ErpPurchaseAdjustmentServiceImpl::parseLong)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-
-        Map<String, ErpPurchaseAdjustmentEntity> adjustmentMap = headIds.isEmpty()
-                ? Map.of()
-                : baseMapper.selectByIds(headIds).stream()
-                .filter(adjustment -> adjustment != null && adjustment.getId() != null)
-                .collect(Collectors.toMap(
-                        adjustment -> String.valueOf(adjustment.getId()),
-                        adjustment -> adjustment,
-                        (left, right) -> left
-                ));
-
-        List<ErpPurchaseAdjustmentLineEntity> approvedPriceList = priceList.stream()
-                .filter(price -> isApprovedBeforeYearEnd(price, adjustmentMap, approveEnd))
-                .collect(Collectors.toList());
-        if (CollUtil.isEmpty(approvedPriceList)) {
-            resultPage.setRecords(buildMaterialOnlyRecords(materialList, useOrgNameMap));
-            return resultPage;
-        }
-
-        Set<String> supplierIds = approvedPriceList.stream()
-                .map(ErpPurchaseAdjustmentLineEntity::getSupplierId)
-                .filter(StrUtil::isNotBlank)
-                .collect(Collectors.toSet());
-
-        Map<String, ErpSupplierEntity> supplierMap = supplierIds.isEmpty()
-                ? Map.of()
-                : supplierMapper.selectByIds(supplierIds)
-                .stream()
-                .filter(supplier -> supplier != null && StrUtil.isNotBlank(supplier.getSupplierId()))
-                .collect(Collectors.toMap(
-                        ErpSupplierEntity::getSupplierId,
-                        supplier -> supplier,
-                        (left, right) -> left
-                ));
-
-        Map<String, List<ErpPurchaseAdjustmentLineEntity>> materialSupplierGroup = approvedPriceList.stream()
-                .filter(price -> materialMap.containsKey(price.getMaterialId()))
-                .filter(price -> StrUtil.isNotBlank(price.getSupplierId()))
+        Map<MaterialSupplierPriceGroupKey, List<MaterialSupplierPriceLineRow>> groupedRows = rows.stream()
                 .collect(Collectors.groupingBy(
-                        price -> buildMaterialSupplierKey(price.getMaterialId(), price.getSupplierId()),
+                        row -> new MaterialSupplierPriceGroupKey(row.getMaterialId(), row.getSupplierId(), row.getUseOrgId()),
                         LinkedHashMap::new,
                         Collectors.toList()
                 ));
 
-        List<MaterialSupplierPriceVo> result = new ArrayList<>();
-
-        for (Map.Entry<String, List<ErpPurchaseAdjustmentLineEntity>> entry : materialSupplierGroup.entrySet()) {
-            List<ErpPurchaseAdjustmentLineEntity> materialSupplierPrices = entry.getValue();
-            ErpPurchaseAdjustmentLineEntity firstPrice = materialSupplierPrices.get(0);
-            ErpMaterialEntity material = materialMap.get(firstPrice.getMaterialId());
-            ErpSupplierEntity supplier = supplierMap.get(firstPrice.getSupplierId());
-            if (supplier == null) {
-                continue;
-            }
-
-            Map<Integer, BigDecimal> monthlyPrices = buildMonthlyPrices(materialSupplierPrices, adjustmentMap, query.getYear(), yearEnd);
-
-            MaterialSupplierPriceVo vo = new MaterialSupplierPriceVo();
-            vo.setMaterialId(firstPrice.getMaterialId());
-            vo.setMaterialCode(material.getNumber());
-            vo.setMaterialName(material.getName());
-            vo.setSpecification(material.getSpecification());
-            vo.setUseOrgId(resolveUseOrgName(material, useOrgNameMap));
-            vo.setSupplierId(firstPrice.getSupplierId());
-            vo.setSupplierCode(supplier.getNumber());
-            vo.setSupplierName(supplier.getName());
-            vo.setSupplierShortName(supplier.getShortName());
-            vo.setMonthlyPrices(monthlyPrices);
-            vo.setAvgPrice(calculateAveragePrice(monthlyPrices));
-            vo.setRecordCount(materialSupplierPrices.size());
-
-            result.add(vo);
-        }
-
-        Set<String> pricedMaterialIds = result.stream()
-                .map(MaterialSupplierPriceVo::getMaterialId)
-                .filter(StrUtil::isNotBlank)
-                .collect(Collectors.toSet());
-        materialList.stream()
-                .filter(material -> material != null && material.getMaterialId() != null)
-                .filter(material -> !pricedMaterialIds.contains(String.valueOf(material.getMaterialId())))
-                .map(material -> buildMaterialOnlyVo(material, useOrgNameMap))
-                .forEach(result::add);
-
-        log.info("处理完成，返回{}个物料供应商价格数据", result.size());
-        resultPage.setRecords(result);
-        return resultPage;
-    }
-
-    private Map<String, String> buildUseOrgNameMap(List<ErpMaterialEntity> materialList) {
-        Set<Long> useOrgIds = materialList.stream()
-                .map(ErpMaterialEntity::getUseOrgId)
-                .map(ErpPurchaseAdjustmentServiceImpl::parseLong)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-        if (CollUtil.isEmpty(useOrgIds)) {
-            return Map.of();
-        }
-        return orgMapper.selectByIds(useOrgIds).stream()
-                .filter(org -> org != null && org.getOrgId() != null && StrUtil.isNotBlank(org.getName()))
-                .collect(Collectors.toMap(
-                        org -> String.valueOf(org.getOrgId()),
-                        ErpOrgEntity::getName,
-                        (left, right) -> left
-                ));
-    }
-
-    private static List<MaterialSupplierPriceVo> buildMaterialOnlyRecords(List<ErpMaterialEntity> materialList,
-                                                                          Map<String, String> useOrgNameMap) {
-        if (CollUtil.isEmpty(materialList)) {
-            return List.of();
-        }
-        return materialList.stream()
-                .filter(material -> material != null && material.getMaterialId() != null)
-                .map(material -> buildMaterialOnlyVo(material, useOrgNameMap))
+        List<MaterialSupplierPriceVo> groupedRecords = groupedRows.values().stream()
+                .map(groupRows -> buildMaterialSupplierPriceVo(groupRows, query.getYear()))
                 .collect(Collectors.toList());
+
+        long total = groupedRecords.size();
+        long offset = (long) (pageNo - 1) * pageSize;
+        int fromIndex = offset >= total ? groupedRecords.size() : (int) offset;
+        int toIndex = Math.min(fromIndex + pageSize, groupedRecords.size());
+
+        Page<MaterialSupplierPriceVo> page = new Page<>(pageNo, pageSize, total);
+        page.setRecords(groupedRecords.subList(fromIndex, toIndex));
+        return page;
     }
 
-    private static MaterialSupplierPriceVo buildMaterialOnlyVo(ErpMaterialEntity material,
-                                                               Map<String, String> useOrgNameMap) {
+    private MaterialSupplierPriceVo buildMaterialSupplierPriceVo(List<MaterialSupplierPriceLineRow> rows, int year) {
+        MaterialSupplierPriceLineRow first = rows.get(0);
         MaterialSupplierPriceVo vo = new MaterialSupplierPriceVo();
-        vo.setMaterialId(String.valueOf(material.getMaterialId()));
-        vo.setMaterialCode(material.getNumber());
-        vo.setMaterialName(material.getName());
-        vo.setSpecification(material.getSpecification());
-        vo.setUseOrgId(resolveUseOrgName(material, useOrgNameMap));
-        vo.setMonthlyPrices(initMonthlyPrices());
-        vo.setAvgPrice(BigDecimal.ZERO);
-        vo.setRecordCount(0);
+        vo.setMaterialId(first.getMaterialId());
+        vo.setMaterialCode(first.getMaterialCode());
+        vo.setMaterialName(first.getMaterialName());
+        vo.setSpecification(first.getSpecification());
+        vo.setUseOrgId(first.getUseOrgId());
+        vo.setSupplierId(first.getSupplierId());
+        vo.setSupplierCode(first.getSupplierCode());
+        vo.setSupplierName(first.getSupplierName());
+        vo.setSupplierShortName(first.getSupplierShortName());
+        vo.setRecordCount(rows.size());
+
+        Map<Integer, BigDecimal> monthlyPrices = new LinkedHashMap<>();
+        for (int month = 1; month <= 12; month++) {
+            monthlyPrices.put(month, resolveMonthPrice(rows, year, month));
+        }
+        vo.setMonthlyPrices(monthlyPrices);
+        vo.setAvgPrice(calculateAveragePrice(monthlyPrices));
         return vo;
     }
 
-    private static String resolveUseOrgName(ErpMaterialEntity material, Map<String, String> useOrgNameMap) {
-        if (material == null || StrUtil.isBlank(material.getUseOrgId())) {
-            return null;
-        }
-        return useOrgNameMap.getOrDefault(material.getUseOrgId(), material.getUseOrgId());
-    }
+    private BigDecimal resolveMonthPrice(List<MaterialSupplierPriceLineRow> rows, int year, int month) {
+        LocalDate monthStart = LocalDate.of(year, month, 1);
+        LocalDate monthEnd = monthStart.withDayOfMonth(monthStart.lengthOfMonth());
+        LocalDateTime monthEndTime = monthEnd.atTime(23, 59, 59);
+        MaterialSupplierPriceLineRow best = null;
 
-    private static Map<Integer, BigDecimal> initMonthlyPrices() {
-        Map<Integer, BigDecimal> monthlyPrices = new LinkedHashMap<>();
-        for (int month = 1; month <= 12; month++) {
-            monthlyPrices.put(month, BigDecimal.ZERO);
-        }
-        return monthlyPrices;
-    }
-
-    private static boolean isEffectiveInMonth(ErpPurchaseAdjustmentLineEntity price, LocalDate monthStart, LocalDate monthEnd) {
-        LocalDate effectiveDate = price.getEffectiveDate();
-        LocalDate expiryDate = price.getExpiryDate();
-        return effectiveDate != null
-                && effectiveDate.isBefore(monthEnd)
-                && (expiryDate == null || !expiryDate.isBefore(monthStart));
-    }
-
-    private static Map<Integer, BigDecimal> buildMonthlyPrices(List<ErpPurchaseAdjustmentLineEntity> materialSupplierPrices,
-                                                               Map<String, ErpPurchaseAdjustmentEntity> adjustmentMap,
-                                                               Integer year,
-                                                               LocalDate yearEnd) {
-        Map<Integer, BigDecimal> monthlyPrices = initMonthlyPrices();
-        List<ErpPurchaseAdjustmentLineEntity> sortedPrices = materialSupplierPrices.stream()
-                .filter(price -> price.getEffectiveDate() != null && price.getAfterPrice() != null)
-                .sorted(Comparator.comparing(ErpPurchaseAdjustmentLineEntity::getEffectiveDate))
-                .collect(Collectors.toList());
-        if (CollUtil.isEmpty(sortedPrices)) {
-            return monthlyPrices;
-        }
-
-        for (int month = 1; month <= 12; month++) {
-            LocalDate monthStart = LocalDate.of(year, month, 1);
-            LocalDate monthEnd = month == 12 ? yearEnd : LocalDate.of(year, month + 1, 1);
-
-            ErpPurchaseAdjustmentLineEntity monthPrice = sortedPrices.stream()
-                    .filter(price -> isEffectiveInMonth(price, monthStart, monthEnd))
-                    .filter(price -> isApprovedBeforeMonthEnd(price, adjustmentMap, monthEnd.atStartOfDay()))
-                    .max(Comparator.comparing(ErpPurchaseAdjustmentLineEntity::getEffectiveDate)
-                            .thenComparing(price -> getApproveDate(price, adjustmentMap), Comparator.nullsFirst(LocalDateTime::compareTo)))
-                    .orElse(null);
-
-            if (monthPrice != null) {
-                monthlyPrices.put(month, monthPrice.getAfterPrice());
+        for (MaterialSupplierPriceLineRow row : rows) {
+            if (!isValidForMonth(row, monthStart, monthEnd, monthEndTime)) {
+                continue;
+            }
+            if (isBetterMonthCandidate(row, best)) {
+                best = row;
             }
         }
-        return monthlyPrices;
+        return best == null || best.getAfterTaxPrice() == null ? BigDecimal.ZERO : best.getAfterTaxPrice();
     }
 
-    private static boolean isApprovedBeforeYearEnd(ErpPurchaseAdjustmentLineEntity price,
-                                                   Map<String, ErpPurchaseAdjustmentEntity> adjustmentMap,
-                                                   LocalDateTime approveEnd) {
-        ErpPurchaseAdjustmentEntity adjustment = adjustmentMap.get(price.getPId());
-        return adjustment != null
-                && adjustment.getApproveDate() != null
-                && adjustment.getApproveDate().isBefore(approveEnd);
+    private boolean isValidForMonth(MaterialSupplierPriceLineRow row, LocalDate monthStart, LocalDate monthEnd, LocalDateTime monthEndTime) {
+        return row.getEffectiveDate() != null
+                && row.getExpiryDate() != null
+                && row.getApproveDate() != null
+                // 生效日期在月末之前
+                && !row.getEffectiveDate().isAfter(monthEnd)
+                // 失效日期在月初之后
+                && !row.getExpiryDate().isBefore(monthStart)
+                // 审批日期在月末之前
+                && !row.getApproveDate().isAfter(monthEndTime);
     }
 
-    private static boolean isApprovedBeforeMonthEnd(ErpPurchaseAdjustmentLineEntity price,
-                                                    Map<String, ErpPurchaseAdjustmentEntity> adjustmentMap,
-                                                    LocalDateTime monthEnd) {
-        LocalDateTime approveDate = getApproveDate(price, adjustmentMap);
-        return approveDate != null && approveDate.isBefore(monthEnd);
+    private boolean isBetterMonthCandidate(MaterialSupplierPriceLineRow candidate, MaterialSupplierPriceLineRow current) {
+        if (current == null) {
+            return true;
+        }
+        int effectiveCompare = candidate.getEffectiveDate().compareTo(current.getEffectiveDate());
+        if (effectiveCompare != 0) {
+            return effectiveCompare > 0;
+        }
+        return candidate.getApproveDate().isAfter(current.getApproveDate());
     }
 
-    private static LocalDateTime getApproveDate(ErpPurchaseAdjustmentLineEntity price,
-                                                Map<String, ErpPurchaseAdjustmentEntity> adjustmentMap) {
-        ErpPurchaseAdjustmentEntity adjustment = adjustmentMap.get(price.getPId());
-        return adjustment == null ? null : adjustment.getApproveDate();
-    }
-
-    private static BigDecimal calculateAveragePrice(Map<Integer, BigDecimal> monthlyPrices) {
-        BigDecimal total = BigDecimal.ZERO;
-        int validCount = 0;
+    private BigDecimal calculateAveragePrice(Map<Integer, BigDecimal> monthlyPrices) {
+        BigDecimal sum = BigDecimal.ZERO;
+        int count = 0;
         for (BigDecimal price : monthlyPrices.values()) {
             if (price != null && price.compareTo(BigDecimal.ZERO) > 0) {
-                total = total.add(price);
-                validCount++;
+                sum = sum.add(price);
+                count++;
             }
         }
-        return validCount > 0 ? total.divide(new BigDecimal(validCount), 2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
+        if (count == 0) {
+            return BigDecimal.ZERO;
+        }
+        return sum.divide(BigDecimal.valueOf(count), 2, RoundingMode.HALF_UP);
     }
 
-    private static Long parseLong(String value) {
-        if (StrUtil.isBlank(value)) {
-            return null;
-        }
-        try {
-            return Long.valueOf(value);
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
-    private static String buildMaterialSupplierKey(String materialId, String supplierId) {
-        return materialId + "::" + supplierId;
+    private record MaterialSupplierPriceGroupKey(String materialId, String supplierId, String useOrgId) {
     }
 
     @Override
@@ -509,14 +323,19 @@ public class ErpPurchaseAdjustmentServiceImpl extends ServiceImpl<ErpPurchaseAdj
 
         // 构建查询条件 - 根据物料编码或物料名称查询
         LambdaQueryWrapper<ErpMaterialEntity> queryWrapper = new LambdaQueryWrapper<>();
-        queryWrapper.eq(ErpMaterialEntity::getUseOrgId, "1");
-        queryWrapper.and(wrapper ->
-            wrapper.like(ErpMaterialEntity::getNumber, query.getKeyword())
-                   .or()
-                   .like(ErpMaterialEntity::getName, query.getKeyword())
-        )
-        .orderByAsc(ErpMaterialEntity::getNumber)
-        .last("LIMIT 50");
+        if (StrUtil.isNotBlank(query.getUseOrgId())) {
+            queryWrapper.eq(ErpMaterialEntity::getUseOrgId, query.getUseOrgId());
+        }
+        if (StrUtil.isNotBlank(query.getKeyword())) {
+            queryWrapper.and(wrapper ->
+                    wrapper.like(ErpMaterialEntity::getNumber, query.getKeyword())
+                            .or()
+                            .like(ErpMaterialEntity::getName, query.getKeyword())
+            );
+        }
+        filterMaterialWithAdjustmentLine(queryWrapper);
+        queryWrapper.orderByAsc(ErpMaterialEntity::getNumber)
+                .last("LIMIT 50");
 
         // 查询物料数据
         List<ErpMaterialEntity> materialList = materialMapper.selectList(queryWrapper);
@@ -542,6 +361,10 @@ public class ErpPurchaseAdjustmentServiceImpl extends ServiceImpl<ErpPurchaseAdj
 
         log.info("处理完成，返回{}个物料", result.size());
         return result;
+    }
+
+    private static void filterMaterialWithAdjustmentLine(LambdaQueryWrapper<ErpMaterialEntity> queryWrapper) {
+        queryWrapper.exists("select 1 from erp_purchase_adjustment_line line where line.material_id = erp_material.material_id");
     }
 
 }

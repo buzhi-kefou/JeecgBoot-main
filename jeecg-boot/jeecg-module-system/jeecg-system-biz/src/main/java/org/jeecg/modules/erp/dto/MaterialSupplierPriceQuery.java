@@ -14,6 +14,8 @@ public class MaterialSupplierPriceQuery {
 //    @NotBlank(message = "物料编码不能为空")
     private String materialCode;
 
+    private String supplierId;
+
     private String useOrgId;
 
     @NotNull(message = "年份不能为空")

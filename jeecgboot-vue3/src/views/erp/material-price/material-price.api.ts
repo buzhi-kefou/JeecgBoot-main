@@ -18,7 +18,7 @@ export const getMaterialPriceList = (params: { materialCode?: string; useOrgId?:
  * 获取物料编码列表
  * @param params
  */
-export const getMaterialCodeList = (params: { keyword: string }) => {
+export const getMaterialCodeList = (params: { keyword: string; useOrgId?: string }) => {
   return defHttp.post({ url: Api.getMaterialCodeList, data: params });
 };
 

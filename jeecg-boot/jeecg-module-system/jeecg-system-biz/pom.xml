@@ -61,6 +61,15 @@
 			<artifactId>jeecg-boot-module-airag</artifactId>
 			<version>${jeecgboot.version}</version>
 		</dependency>
+		<dependency>
+			<groupId>com.xuxueli</groupId>
+			<artifactId>xxl-job-core</artifactId>
+			<version>${xxl-job-core.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-test</artifactId>
+		</dependency>
 	</dependencies>
 	
 </project>

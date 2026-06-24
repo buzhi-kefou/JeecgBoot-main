@@ -69,6 +69,7 @@
 	<!-- 日志输出级别 -->
 	<root level="INFO">
 		<appender-ref ref="STDOUT" />
+		<appender-ref ref="FILE" />
 		
 		<!-- 开发环境关闭日志生成，项目启动快；生产环境请按需打开注释
 		<appender-ref ref="FILE" />

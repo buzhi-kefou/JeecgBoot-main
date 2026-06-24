@@ -95,14 +95,10 @@ export const materialCodeOptions = ref<{ label: string; value: string }[]>([]);
 export const orgOptions = ref<{ label: string; value: string }[]>([]);
 
 // 加载物料选项
-export const loadMaterialOptions = async (keyword: string = '') => {
+export const loadMaterialOptions = async (keyword: string = '', useOrgId?: string) => {
   try {
-    if (!keyword) {
-      materialCodeOptions.value = [];
-      return;
-    }
     const { getMaterialCodeList } = await import('./material-price.api');
-    const result = await getMaterialCodeList({ keyword });
+    const result = await getMaterialCodeList({ keyword, useOrgId });
     materialCodeOptions.value = result.map((item) => ({
       label: `${item.materialCode} - ${item.materialName} - ${item.specification}`,
       value: item.materialCode,
@@ -135,14 +131,14 @@ export const searchFormSchema: FormSchema[] = [
     label: '物料编码',
     component: 'Select',
     colProps: { span: 10 },
-    componentProps: {
+    componentProps: ({ formModel }) => ({
       placeholder: '请输入物料编码搜索，不填查询全部物料',
       showSearch: true,
       allowClear: true,
       options: materialCodeOptions,
       filterOption: false,
-      onSearch: loadMaterialOptions,
-    },
+      onSearch: (keyword: string) => loadMaterialOptions(keyword, formModel.useOrgId),
+    }),
   },
   {
     field: 'useOrgId',
@@ -162,13 +158,12 @@ export const searchFormSchema: FormSchema[] = [
     field: 'year',
     label: '年份',
     component: 'Select',
+    defaultValue: new Date().getFullYear(),
     colProps: { span: 4 },
     componentProps: {
       placeholder: '请选择年份',
       options: generateYearOptions(),
     },
-    rules: [
-      { required: true, message: '请选择年份' }
-    ],
+    rules: [{ required: true, message: '请选择年份' }],
   },
 ];

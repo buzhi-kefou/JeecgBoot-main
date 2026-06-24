@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.jeecg.modules.erp.mapper.ErpPurchaseAdjustmentEntityMapper">
+
+    <select id="selectMaterialSupplierPriceRows" resultType="org.jeecg.modules.erp.dto.MaterialSupplierPriceLineRow">
+        select
+        b.material_id as materialId,
+        b.number as materialCode,
+        b.name as materialName,
+        b.specification as specification,
+        d.name as useOrgId,
+        a.supplier_id as supplierId,
+        c.number as supplierCode,
+        c.name as supplierName,
+        a.effective_date as effectiveDate,
+        a.expiry_date as expiryDate,
+        a.after_tax_price as afterTaxPrice,
+        e.approve_date as approveDate
+        from erp_purchase_adjustment_line a
+        inner join erp_purchase_adjustment e on e.id = a.p_id
+        inner join erp_material b on b.material_id = a.material_id
+        left join erp_supplier c on c.supplier_id = a.supplier_id
+        left join erp_org d on d.org_id = b.use_org_id
+        where e.document_status = 'C'
+        and e.approve_date is not null
+        and e.approve_date &lt; #{nextYearStart}
+        and a.effective_date &lt; #{nextYearStart}
+        and a.expiry_date &gt;= #{yearStart}
+        <if test="materialCode != null and materialCode != ''">
+            and b.number = #{materialCode}
+        </if>
+        <if test="supplierId != null and supplierId != ''">
+            and a.supplier_id = #{supplierId}
+        </if>
+        <if test="useOrgId != null and useOrgId != ''">
+            and b.use_org_id = #{useOrgId}
+        </if>
+    </select>
+</mapper>
