@@ -16,3 +16,5 @@ erp:
   username: '全功能'
   headerKey: 'kdservice-sessionid'
   headerToken:
+  connect-timeout-millis: 15000
+  read-timeout-millis: 120000

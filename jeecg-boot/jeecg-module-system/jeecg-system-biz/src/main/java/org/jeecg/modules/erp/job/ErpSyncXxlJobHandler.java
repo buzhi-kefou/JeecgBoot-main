@@ -3,7 +3,6 @@ package org.jeecg.modules.erp.job;
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson.JSONException;
 import com.alibaba.fastjson.JSONObject;
-import com.xxl.job.core.biz.model.ReturnT;
 import com.xxl.job.core.context.XxlJobHelper;
 import com.xxl.job.core.handler.annotation.XxlJob;
 import lombok.extern.slf4j.Slf4j;
@@ -62,49 +61,76 @@ public class ErpSyncXxlJobHandler {
     }
 
     @XxlJob("erpMaterialSyncJob")
-    public ReturnT<String> erpMaterialSyncJob() {
+    public void erpMaterialSyncJob() {
         String param = XxlJobHelper.getJobParam();
-        return executeMonthlySync("物料", param, materialService::queryByDate);
+        if (StrUtil.isBlank(param)) {
+            param = LocalDate.now().format(DATE_FORMATTER);
+        }
+        executeMonthlySync("物料", param, materialService::queryByDate);
     }
 
     @XxlJob("erpSupplierSyncJob")
-    public ReturnT<String> erpSupplierSyncJob() {
+    public void erpSupplierSyncJob() {
         String param = XxlJobHelper.getJobParam();
-        return executeMonthlySync("供应商", param, supplierService::queryByDate);
+        if (StrUtil.isBlank(param)) {
+            param = LocalDate.now().format(DATE_FORMATTER);
+        }
+        executeMonthlySync("供应商", param, supplierService::queryByDate);
     }
 
     @XxlJob("erpPurchaseAdjustmentSyncJob")
-    public ReturnT<String> erpPurchaseAdjustmentSyncJob() {
+    public void erpPurchaseAdjustmentSyncJob() {
         String param = XxlJobHelper.getJobParam();
-        return executeMonthlySync("采购调价", param, purchaseAdjustmentService::queryByDate);
+        if (StrUtil.isBlank(param)) {
+            param = LocalDate.now().format(DATE_FORMATTER);
+        }
+        executeMonthlySync("采购调价", param, purchaseAdjustmentService::queryByDate);
     }
 
     @XxlJob("erpOrgSyncJob")
-    public ReturnT<String> erpOrgSyncJob() {
+    public void erpOrgSyncJob() {
         String param = XxlJobHelper.getJobParam();
-        return executeMonthlySync("组织", param, orgService::queryByDate);
+        if (StrUtil.isBlank(param)) {
+            param = LocalDate.now().format(DATE_FORMATTER);
+        }
+        executeMonthlySync("组织", param, orgService::queryByDate);
     }
 
-    private ReturnT<String> executeMonthlySync(String jobName, String param,
-                                               BiFunction<String, String, ? extends List<?>> queryFunction) {
+    private void executeMonthlySync(String jobName, String param,
+                                    BiFunction<String, String, ? extends List<?>> queryFunction) {
         List<DateRange> ranges;
         try {
             ranges = buildMonthlyRanges(extractBeginDate(param), currentDate());
         } catch (IllegalArgumentException e) {
-            log.error("ERP{}同步参数错误：{}", jobName, e.getMessage());
-            return new ReturnT<>(ReturnT.FAIL_CODE, e.getMessage());
+            String message = "ERP" + jobName + "同步参数错误：" + e.getMessage();
+            log.error(message);
+            XxlJobHelper.log(message);
+            XxlJobHelper.handleFail(message);
+            return;
         }
 
         int totalCount = 0;
-        for (DateRange range : ranges) {
-            List<?> result = queryFunction.apply(range.beginDate(), range.endDate());
-            int count = result == null ? 0 : result.size();
-            totalCount += count;
-            log.info("ERP{}同步完成，日期范围：{} ~ {}，返回数量：{}", jobName, range.beginDate(), range.endDate(), count);
+        try {
+            for (DateRange range : ranges) {
+                List<?> result = queryFunction.apply(range.beginDate(), range.endDate());
+                int count = result == null ? 0 : result.size();
+                totalCount += count;
+                String rangeMessage = "ERP" + jobName + "同步完成，日期范围：" + range.beginDate() + " ~ " + range.endDate()
+                        + "，返回数量：" + count;
+                log.info(rangeMessage);
+                XxlJobHelper.log(rangeMessage);
+            }
+        } catch (RuntimeException e) {
+            String message = "ERP" + jobName + "同步执行异常：" + e.getMessage();
+            log.error(message, e);
+            XxlJobHelper.log(e);
+            XxlJobHelper.handleFail(message);
+            throw e;
         }
         String message = "ERP" + jobName + "同步完成，执行月份数：" + ranges.size() + "，返回总数：" + totalCount;
         log.info(message);
-        return new ReturnT<>(ReturnT.SUCCESS_CODE, message);
+        XxlJobHelper.log(message);
+        XxlJobHelper.handleSuccess(message);
     }
 
     static List<DateRange> buildMonthlyRanges(String beginDateStr, LocalDate currentDate) {

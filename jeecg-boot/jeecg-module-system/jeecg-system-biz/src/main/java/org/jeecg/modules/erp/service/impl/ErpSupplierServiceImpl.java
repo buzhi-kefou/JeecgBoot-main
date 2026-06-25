@@ -7,13 +7,12 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.jeecg.modules.erp.dto.QueryDetailDto;
 import org.jeecg.modules.erp.dto.QueryDto;
-import org.jeecg.modules.erp.entity.ErpMaterialEntity;
 import org.jeecg.modules.erp.entity.ErpSupplierEntity;
 import org.jeecg.modules.erp.mapper.ErpSupplierEntityMapper;
 import org.jeecg.modules.erp.service.ErpRequestService;
 import org.jeecg.modules.erp.service.IErpSupplierService;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -29,8 +28,10 @@ public class ErpSupplierServiceImpl extends ServiceImpl<ErpSupplierEntityMapper,
     @Resource
     private ErpRequestService erpRequestService;
 
+    @Resource
+    private TransactionTemplate transactionTemplate;
+
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public List<ErpSupplierEntity> queryByDate(String beginDateStr, String endDateStr) {
         String filterString = "";
         if (StrUtil.isNotBlank(beginDateStr)) {
@@ -69,7 +70,15 @@ public class ErpSupplierServiceImpl extends ServiceImpl<ErpSupplierEntityMapper,
         queryDto.setParameters(List.of(detailDto));
 
         List<ErpSupplierEntity> request = erpRequestService.request(queryDto, ErpSupplierEntity.class);
+        transactionTemplate.execute(status -> {
+            saveOrUpdateSuppliers(request);
+            return null;
+        });
 
+        return request;
+    }
+
+    private void saveOrUpdateSuppliers(List<ErpSupplierEntity> request) {
         List<ErpSupplierEntity> insertList = new ArrayList<>();
         List<ErpSupplierEntity> updateList = new ArrayList<>();
         if (CollUtil.isNotEmpty(request)) {
@@ -98,7 +107,5 @@ public class ErpSupplierServiceImpl extends ServiceImpl<ErpSupplierEntityMapper,
             this.updateBatchById(updateList);
         }
 
-        log.error("请求返回实体列表： {}", request);
-        return request;
     }
 }

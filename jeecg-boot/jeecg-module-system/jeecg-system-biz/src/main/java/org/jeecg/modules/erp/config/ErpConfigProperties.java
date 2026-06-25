@@ -28,6 +28,16 @@ public class ErpConfigProperties {
 
     private String headerToken;
 
+    /**
+     * ERP接口连接超时时间，单位毫秒。
+     */
+    private int connectTimeoutMillis = 15000;
+
+    /**
+     * ERP接口读取超时时间，单位毫秒。
+     */
+    private int readTimeoutMillis = 120000;
+
 //    authUrl: kdservice-sessionid
 //    queryUrl: http://192.168.6.134/K3Cloud/Kingdee.BOS.WebApi.ServicesStub.DynamicFormService.ExecuteBillQuery.common.kdsvc
 //    acctID: '6a044c2a46383c'

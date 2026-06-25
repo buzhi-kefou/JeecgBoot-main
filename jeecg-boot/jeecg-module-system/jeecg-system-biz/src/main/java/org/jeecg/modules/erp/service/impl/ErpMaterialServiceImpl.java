@@ -12,7 +12,7 @@ import org.jeecg.modules.erp.mapper.ErpMaterialEntityMapper;
 import org.jeecg.modules.erp.service.ErpRequestService;
 import org.jeecg.modules.erp.service.IErpMaterialService;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -32,8 +32,10 @@ public class ErpMaterialServiceImpl extends ServiceImpl<ErpMaterialEntityMapper,
     @Resource
     private ErpRequestService erpRequestService;
 
+    @Resource
+    private TransactionTemplate transactionTemplate;
+
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public List<ErpMaterialEntity> queryByDate(String beginDateStr, String endDateStr) {
         String filterString = "";
         if (StrUtil.isNotBlank(beginDateStr)) {
@@ -73,6 +75,15 @@ public class ErpMaterialServiceImpl extends ServiceImpl<ErpMaterialEntityMapper,
 
         List<ErpMaterialEntity> request = erpRequestService.request(queryDto, ErpMaterialEntity.class);
 
+        transactionTemplate.execute(status -> {
+            saveOrUpdateMaterials(request);
+            return null;
+        });
+
+        return request;
+    }
+
+    private void saveOrUpdateMaterials(List<ErpMaterialEntity> request) {
         List<ErpMaterialEntity> insertList = new ArrayList<>();
         List<ErpMaterialEntity> updateList = new ArrayList<>();
         if (CollUtil.isNotEmpty(request)) {
@@ -100,6 +111,5 @@ public class ErpMaterialServiceImpl extends ServiceImpl<ErpMaterialEntityMapper,
         if (CollUtil.isNotEmpty(updateList)) {
             this.updateBatchById(updateList);
         }
-        return request;
     }
 }

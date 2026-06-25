@@ -135,8 +135,9 @@ spring:
         minEvictableIdleTimeMillis: 300000
         validationQuery: SELECT 1
         testWhileIdle: true
-        testOnBorrow: false
+        testOnBorrow: true
         testOnReturn: false
+        keepAlive: true
         # 打开PSCache，并且指定每个连接上PSCache的大小
         poolPreparedStatements: true
         maxPoolPreparedStatementPerConnectionSize: 20
@@ -179,7 +180,7 @@ mybatis-plus:
       table-underline: true
   configuration:
     # 这个配置会将执行的sql打印出来，在开发或测试的时候可以用
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+#    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
     # 返回类型为Map,显示null对应的字段
     call-setters-on-nulls: true
 #jeecg专用配置
@@ -295,7 +296,7 @@ jeecg:
     appname: ${spring.application.name}
     accessToken: 'default_token'
 #    address: 127.0.0.1:30007
-#    ip: 127.0.0.1
+#    ip: 192.168.77.107
     port: 30007
     logPath: logs/jeecg/job/jobhandler/
     logRetentionDays: 30

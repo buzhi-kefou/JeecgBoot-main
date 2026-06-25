@@ -45,7 +45,7 @@ public class ErpRequestService {
     @Resource
     private IErpAuthService erpAuthService;
 
-    @Resource
+    @Resource(name = "erpRestTemplate")
     private RestTemplate restTemplate;
 
     @Resource

@@ -10,10 +10,8 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.jeecg.modules.erp.dto.*;
 import org.jeecg.modules.erp.entity.ErpMaterialEntity;
-import org.jeecg.modules.erp.entity.ErpOrgEntity;
 import org.jeecg.modules.erp.entity.ErpPurchaseAdjustmentEntity;
 import org.jeecg.modules.erp.entity.ErpPurchaseAdjustmentLineEntity;
-import org.jeecg.modules.erp.entity.ErpSupplierEntity;
 import org.jeecg.modules.erp.mapper.ErpMaterialEntityMapper;
 import org.jeecg.modules.erp.mapper.ErpOrgEntityMapper;
 import org.jeecg.modules.erp.mapper.ErpPurchaseAdjustmentEntityMapper;
@@ -24,7 +22,7 @@ import org.jeecg.modules.erp.service.IErpPurchaseAdjustmentService;
 import org.jeecg.modules.erp.vo.MaterialSupplierPriceVo;
 import org.jeecg.modules.erp.vo.MaterialVo;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -54,10 +52,12 @@ public class ErpPurchaseAdjustmentServiceImpl extends ServiceImpl<ErpPurchaseAdj
     private ErpMaterialEntityMapper materialMapper;
 
     @Resource
+    private TransactionTemplate transactionTemplate;
+
+    @Resource
     private ErpOrgEntityMapper orgMapper;
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public List<ErpPurchaseAdjustmentEntity> queryByDate(String beginDateStr, String endDateStr) {
         String filterString = "";
         if (StrUtil.isNotBlank(beginDateStr)) {
@@ -96,6 +96,15 @@ public class ErpPurchaseAdjustmentServiceImpl extends ServiceImpl<ErpPurchaseAdj
         queryDto.setParameters(List.of(detailDto));
 
         List<ErpPurchaseAdjustmentEntity> request = erpRequestService.request(queryDto, ErpPurchaseAdjustmentEntity.class);
+        transactionTemplate.execute(status -> {
+            saveOrUpdateOrders(request);
+            return null;
+        });
+
+        return request;
+    }
+
+    private void saveOrUpdateOrders(List<ErpPurchaseAdjustmentEntity> request) {
 
         List<ErpPurchaseAdjustmentEntity> insertList = new ArrayList<>();
         List<ErpPurchaseAdjustmentEntity> updateList = new ArrayList<>();
@@ -152,8 +161,6 @@ public class ErpPurchaseAdjustmentServiceImpl extends ServiceImpl<ErpPurchaseAdj
             }
         }
 
-//        log.error("请求返回实体列表： {}", request);
-        return request;
     }
 
     static List<ErpPurchaseAdjustmentEntity> mergeDuplicateAdjustments(List<ErpPurchaseAdjustmentEntity> request) {

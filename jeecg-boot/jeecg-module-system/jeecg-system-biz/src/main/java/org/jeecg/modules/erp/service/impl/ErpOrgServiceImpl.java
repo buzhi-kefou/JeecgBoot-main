@@ -16,7 +16,7 @@ import org.jeecg.modules.erp.service.ErpRequestService;
 import org.jeecg.modules.erp.service.IErpOrgService;
 import org.jeecg.modules.erp.vo.OrgVo;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -32,8 +32,10 @@ public class ErpOrgServiceImpl extends ServiceImpl<ErpOrgEntityMapper, ErpOrgEnt
     @Resource
     private ErpRequestService erpRequestService;
 
+    @Resource
+    private TransactionTemplate transactionTemplate;
+
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public List<ErpOrgEntity> queryByDate(String beginDateStr, String endDateStr) {
         String filterString = "";
         if (StrUtil.isNotBlank(beginDateStr)) {
@@ -74,7 +76,15 @@ public class ErpOrgServiceImpl extends ServiceImpl<ErpOrgEntityMapper, ErpOrgEnt
         queryDto.setParameters(List.of(detailDto));
 
         List<ErpOrgEntity> request = erpRequestService.request(queryDto, ErpOrgEntity.class);
+        transactionTemplate.execute(status -> {
+            saveOrUpdateOrgs(request);
+            return null;
+        });
 
+        return request;
+    }
+
+    private void saveOrUpdateOrgs(List<ErpOrgEntity> request) {
         List<ErpOrgEntity> insertList = new ArrayList<>();
         List<ErpOrgEntity> updateList = new ArrayList<>();
         if (CollUtil.isNotEmpty(request)) {
@@ -94,7 +104,6 @@ public class ErpOrgServiceImpl extends ServiceImpl<ErpOrgEntityMapper, ErpOrgEnt
         if (CollUtil.isNotEmpty(updateList)) {
             this.updateBatchById(updateList);
         }
-        return request;
     }
 
     @Override
