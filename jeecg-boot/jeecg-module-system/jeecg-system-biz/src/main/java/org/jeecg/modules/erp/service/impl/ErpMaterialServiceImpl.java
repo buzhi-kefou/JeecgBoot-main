@@ -12,14 +12,18 @@ import org.jeecg.modules.erp.mapper.ErpMaterialEntityMapper;
 import org.jeecg.modules.erp.service.ErpRequestService;
 import org.jeecg.modules.erp.service.IErpMaterialService;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -29,6 +33,7 @@ public class ErpMaterialServiceImpl extends ServiceImpl<ErpMaterialEntityMapper,
     private ErpRequestService erpRequestService;
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public List<ErpMaterialEntity> queryByDate(String beginDateStr, String endDateStr) {
         String filterString = "";
         if (StrUtil.isNotBlank(beginDateStr)) {
@@ -71,12 +76,20 @@ public class ErpMaterialServiceImpl extends ServiceImpl<ErpMaterialEntityMapper,
         List<ErpMaterialEntity> insertList = new ArrayList<>();
         List<ErpMaterialEntity> updateList = new ArrayList<>();
         if (CollUtil.isNotEmpty(request)) {
+            Set<Long> materialIds = request.stream()
+                    .map(ErpMaterialEntity::getMaterialId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+            Set<Long> existMaterialIds = CollUtil.isEmpty(materialIds) ? Collections.emptySet() :
+                    baseMapper.selectByIds(materialIds).stream()
+                            .map(ErpMaterialEntity::getMaterialId)
+                            .filter(Objects::nonNull)
+                            .collect(Collectors.toSet());
             for (ErpMaterialEntity entity : request) {
-                ErpMaterialEntity byId = baseMapper.selectById(entity.getMaterialId());
-                if (byId == null) {
-                    insertList.add(entity);
-                } else {
+                if (existMaterialIds.contains(entity.getMaterialId())) {
                     updateList.add(entity);
+                } else {
+                    insertList.add(entity);
                 }
             }
         }

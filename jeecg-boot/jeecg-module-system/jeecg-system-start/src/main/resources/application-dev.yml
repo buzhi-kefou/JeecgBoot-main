@@ -25,7 +25,7 @@ spring:
 #    lazy-initialization: true
   flyway:
     # 是否启用flyway
-    enabled: false
+    enabled: true
     # 迁移sql脚本存放路径
     locations: classpath:flyway/sql/mysql
     # 是否关闭要清除已有库下的表功能,生产环境必须为true,否则会删库，非常重要！！！
@@ -179,7 +179,7 @@ mybatis-plus:
       table-underline: true
   configuration:
     # 这个配置会将执行的sql打印出来，在开发或测试的时候可以用
-    #log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
     # 返回类型为Map,显示null对应的字段
     call-setters-on-nulls: true
 #jeecg专用配置

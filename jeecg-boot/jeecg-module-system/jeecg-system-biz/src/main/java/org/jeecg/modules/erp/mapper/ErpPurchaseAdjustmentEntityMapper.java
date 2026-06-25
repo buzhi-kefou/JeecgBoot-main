@@ -15,4 +15,25 @@ public interface ErpPurchaseAdjustmentEntityMapper extends BaseMapper<ErpPurchas
                                                                        @Param("materialCode") String materialCode,
                                                                        @Param("supplierId") String supplierId,
                                                                        @Param("useOrgId") String useOrgId);
+
+    Long countMaterialSupplierPriceGroups(@Param("yearStart") LocalDate yearStart,
+                                          @Param("nextYearStart") LocalDate nextYearStart,
+                                          @Param("materialCode") String materialCode,
+                                          @Param("supplierId") String supplierId,
+                                          @Param("useOrgId") String useOrgId);
+
+    List<MaterialSupplierPriceLineRow> selectMaterialSupplierPriceGroupPage(@Param("yearStart") LocalDate yearStart,
+                                                                            @Param("nextYearStart") LocalDate nextYearStart,
+                                                                            @Param("materialCode") String materialCode,
+                                                                            @Param("supplierId") String supplierId,
+                                                                            @Param("useOrgId") String useOrgId,
+                                                                            @Param("offset") long offset,
+                                                                            @Param("pageSize") int pageSize);
+
+    List<MaterialSupplierPriceLineRow> selectMaterialSupplierPriceRowsByGroups(@Param("yearStart") LocalDate yearStart,
+                                                                               @Param("nextYearStart") LocalDate nextYearStart,
+                                                                               @Param("materialCode") String materialCode,
+                                                                               @Param("supplierId") String supplierId,
+                                                                               @Param("useOrgId") String useOrgId,
+                                                                               @Param("groups") List<MaterialSupplierPriceLineRow> groups);
 }

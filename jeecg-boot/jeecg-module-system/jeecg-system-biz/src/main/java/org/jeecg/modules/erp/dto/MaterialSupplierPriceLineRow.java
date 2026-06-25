@@ -19,6 +19,8 @@ public class MaterialSupplierPriceLineRow {
 
     private String useOrgId;
 
+    private String useOrgKey;
+
     private String supplierId;
 
     private String supplierCode;

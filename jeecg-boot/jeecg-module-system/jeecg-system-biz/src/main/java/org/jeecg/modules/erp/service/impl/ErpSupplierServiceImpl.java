@@ -7,18 +7,20 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.jeecg.modules.erp.dto.QueryDetailDto;
 import org.jeecg.modules.erp.dto.QueryDto;
+import org.jeecg.modules.erp.entity.ErpMaterialEntity;
 import org.jeecg.modules.erp.entity.ErpSupplierEntity;
 import org.jeecg.modules.erp.mapper.ErpSupplierEntityMapper;
 import org.jeecg.modules.erp.service.ErpRequestService;
 import org.jeecg.modules.erp.service.IErpSupplierService;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -28,6 +30,7 @@ public class ErpSupplierServiceImpl extends ServiceImpl<ErpSupplierEntityMapper,
     private ErpRequestService erpRequestService;
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public List<ErpSupplierEntity> queryByDate(String beginDateStr, String endDateStr) {
         String filterString = "";
         if (StrUtil.isNotBlank(beginDateStr)) {
@@ -70,12 +73,20 @@ public class ErpSupplierServiceImpl extends ServiceImpl<ErpSupplierEntityMapper,
         List<ErpSupplierEntity> insertList = new ArrayList<>();
         List<ErpSupplierEntity> updateList = new ArrayList<>();
         if (CollUtil.isNotEmpty(request)) {
+            Set<String> supplierIds = request.stream()
+                    .map(ErpSupplierEntity::getSupplierId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+            Set<String> existSupplierIds = CollUtil.isEmpty(supplierIds) ? Collections.emptySet() :
+                    baseMapper.selectByIds(supplierIds).stream()
+                            .map(ErpSupplierEntity::getSupplierId)
+                            .filter(Objects::nonNull)
+                            .collect(Collectors.toSet());
             for (ErpSupplierEntity entity : request) {
-                ErpSupplierEntity byId = baseMapper.selectById(entity.getSupplierId());
-                if (byId == null) {
-                    insertList.add(entity);
-                } else {
+                if (existSupplierIds.contains(entity.getSupplierId())) {
                     updateList.add(entity);
+                } else {
+                    insertList.add(entity);
                 }
             }
         }

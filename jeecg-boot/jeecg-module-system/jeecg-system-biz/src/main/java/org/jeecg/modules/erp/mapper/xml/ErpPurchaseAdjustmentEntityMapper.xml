@@ -2,13 +2,13 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="org.jeecg.modules.erp.mapper.ErpPurchaseAdjustmentEntityMapper">
 
-    <select id="selectMaterialSupplierPriceRows" resultType="org.jeecg.modules.erp.dto.MaterialSupplierPriceLineRow">
-        select
+    <sql id="materialSupplierPriceColumns">
         b.material_id as materialId,
         b.number as materialCode,
         b.name as materialName,
         b.specification as specification,
         d.name as useOrgId,
+        b.use_org_id as useOrgKey,
         a.supplier_id as supplierId,
         c.number as supplierCode,
         c.name as supplierName,
@@ -16,11 +16,17 @@
         a.expiry_date as expiryDate,
         a.after_tax_price as afterTaxPrice,
         e.approve_date as approveDate
+    </sql>
+
+    <sql id="materialSupplierPriceJoins">
         from erp_purchase_adjustment_line a
         inner join erp_purchase_adjustment e on e.id = a.p_id
         inner join erp_material b on b.material_id = a.material_id
         left join erp_supplier c on c.supplier_id = a.supplier_id
         left join erp_org d on d.org_id = b.use_org_id
+    </sql>
+
+    <sql id="materialSupplierPriceWhere">
         where e.document_status = 'C'
         and e.approve_date is not null
         and e.approve_date &lt; #{nextYearStart}
@@ -35,5 +41,55 @@
         <if test="useOrgId != null and useOrgId != ''">
             and b.use_org_id = #{useOrgId}
         </if>
+    </sql>
+
+    <select id="selectMaterialSupplierPriceRows" resultType="org.jeecg.modules.erp.dto.MaterialSupplierPriceLineRow">
+        select
+        <include refid="materialSupplierPriceColumns"/>
+        <include refid="materialSupplierPriceJoins"/>
+        <include refid="materialSupplierPriceWhere"/>
+    </select>
+
+    <select id="countMaterialSupplierPriceGroups" resultType="java.lang.Long">
+        select count(1)
+        from (
+            select a.material_id, a.supplier_id, b.use_org_id
+            from erp_purchase_adjustment_line a
+            inner join erp_purchase_adjustment e on e.id = a.p_id
+            inner join erp_material b on b.material_id = a.material_id
+            <include refid="materialSupplierPriceWhere"/>
+            group by a.material_id, a.supplier_id, b.use_org_id
+        ) grouped
+    </select>
+
+    <select id="selectMaterialSupplierPriceGroupPage" resultType="org.jeecg.modules.erp.dto.MaterialSupplierPriceLineRow">
+        select
+        a.material_id as materialId,
+        a.supplier_id as supplierId,
+        d.name as useOrgId,
+        b.use_org_id as useOrgKey
+        <include refid="materialSupplierPriceJoins"/>
+        <include refid="materialSupplierPriceWhere"/>
+        group by a.material_id, a.supplier_id, b.use_org_id, d.name
+        order by min(a.id)
+        limit #{pageSize} offset #{offset}
+    </select>
+
+    <select id="selectMaterialSupplierPriceRowsByGroups" resultType="org.jeecg.modules.erp.dto.MaterialSupplierPriceLineRow">
+        select
+        <include refid="materialSupplierPriceColumns"/>
+        <include refid="materialSupplierPriceJoins"/>
+        inner join (
+        <foreach collection="groups" item="group" index="index" separator=" union all ">
+            select #{index} as ord,
+            #{group.materialId} as material_id,
+            #{group.supplierId} as supplier_id,
+            #{group.useOrgKey} as use_org_id
+        </foreach>
+        ) page_groups on page_groups.material_id = a.material_id
+        and page_groups.supplier_id &lt;=&gt; a.supplier_id
+        and page_groups.use_org_id &lt;=&gt; b.use_org_id
+        <include refid="materialSupplierPriceWhere"/>
+        order by page_groups.ord, a.id
     </select>
 </mapper>

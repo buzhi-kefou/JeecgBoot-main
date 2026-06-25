@@ -5,12 +5,16 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.jeecg.modules.erp.config.ErpConfigProperties;
 import org.jeecg.modules.erp.dto.QueryDetailDto;
 import org.jeecg.modules.erp.dto.QueryDto;
 import org.jeecg.modules.erp.entity.ErpCommonEntity;
+import org.jeecg.modules.system.dto.InterfaceLogContext;
+import org.jeecg.modules.system.entity.SysInterfaceLog;
+import org.jeecg.modules.system.service.ISysInterfaceLogService;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -25,6 +29,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,10 +48,14 @@ public class ErpRequestService {
     @Resource
     private RestTemplate restTemplate;
 
+    @Resource
+    private ISysInterfaceLogService interfaceLogService;
+
     public <T> List<T> request(QueryDto dto, Class<T> clazz) {
         QueryDetailDto detailDto = getQueryDetailDto(dto);
         Integer limit = detailDto.getLimit();
         List<T> result = new ArrayList<>();
+        String traceId = IdWorker.getIdStr();
 
         String token = erpAuthService.login();
 
@@ -59,13 +68,25 @@ public class ErpRequestService {
             log.error("请求体参数：{}", jsonString);
 
             HttpEntity<String> requestEntity = new HttpEntity<>(jsonString, headers);
-            ResponseEntity<String> response = restTemplate.postForEntity(
-                    erpConfigProperties.getQueryUrl(),
-                    requestEntity,
-                    String.class);
-
-            String respBody = response.getBody();
-            List<T> rows = parseRows(respBody, detailDto.getFieldKeys(), clazz);
+            long requestStart = System.currentTimeMillis();
+            SysInterfaceLog interfaceLog = startInterfaceLog(traceId, detailDto, headers, jsonString);
+            String interfaceLogId = interfaceLog == null ? null : interfaceLog.getId();
+            Integer responseStatus = null;
+            String respBody = null;
+            List<T> rows;
+            try {
+                ResponseEntity<String> response = restTemplate.postForEntity(
+                        erpConfigProperties.getQueryUrl(),
+                        requestEntity,
+                        String.class);
+                responseStatus = response.getStatusCode().value();
+                respBody = response.getBody();
+                rows = parseRows(respBody, detailDto.getFieldKeys(), clazz);
+                finishInterfaceLogSuccess(interfaceLogId, responseStatus, respBody, requestStart);
+            } catch (RuntimeException e) {
+                finishInterfaceLogFail(interfaceLogId, responseStatus, respBody, e, requestStart);
+                throw e;
+            }
             result.addAll(rows);
 
             if (limit == null || limit <= 0 || rows.size() != limit) {
@@ -76,6 +97,54 @@ public class ErpRequestService {
         }
 
         return result;
+    }
+
+    private SysInterfaceLog startInterfaceLog(String traceId, QueryDetailDto detailDto,
+                                              HttpHeaders headers, String requestBody) {
+        if (interfaceLogService == null) {
+            return null;
+        }
+        try {
+            InterfaceLogContext context = InterfaceLogContext.builder()
+                    .traceId(traceId)
+                    .bizType("ERP_SYNC")
+                    .bizName("ERP接口请求")
+                    .sourceService("ErpRequestService")
+                    .interfaceName(detailDto.getFormId())
+                    .requestMethod("POST")
+                    .requestUrl(erpConfigProperties.getQueryUrl())
+                    .requestHeaders(JSONObject.toJSONString(headers.toSingleValueMap()))
+                    .requestBody(requestBody)
+                    .startTime(new Date())
+                    .build();
+            return interfaceLogService.start(context);
+        } catch (RuntimeException e) {
+            log.warn("接口日志开始记录失败，不影响ERP请求，formId：{}", detailDto.getFormId(), e);
+            return null;
+        }
+    }
+
+    private void finishInterfaceLogSuccess(String logId, Integer responseStatus, String responseBody, long requestStart) {
+        if (interfaceLogService == null || StrUtil.isBlank(logId)) {
+            return;
+        }
+        try {
+            interfaceLogService.success(logId, responseStatus, responseBody, System.currentTimeMillis() - requestStart);
+        } catch (RuntimeException e) {
+            log.warn("接口日志成功记录失败，不影响ERP请求，logId：{}", logId, e);
+        }
+    }
+
+    private void finishInterfaceLogFail(String logId, Integer responseStatus, String responseBody,
+                                        RuntimeException error, long requestStart) {
+        if (interfaceLogService == null || StrUtil.isBlank(logId)) {
+            return;
+        }
+        try {
+            interfaceLogService.fail(logId, responseStatus, responseBody, error, System.currentTimeMillis() - requestStart);
+        } catch (RuntimeException e) {
+            log.warn("接口日志失败记录失败，不影响ERP请求，logId：{}", logId, e);
+        }
     }
 
     private static QueryDetailDto getQueryDetailDto(QueryDto dto) {

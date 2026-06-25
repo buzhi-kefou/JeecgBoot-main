@@ -24,6 +24,7 @@ import org.jeecg.modules.erp.service.IErpPurchaseAdjustmentService;
 import org.jeecg.modules.erp.vo.MaterialSupplierPriceVo;
 import org.jeecg.modules.erp.vo.MaterialVo;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -32,13 +33,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -62,6 +57,7 @@ public class ErpPurchaseAdjustmentServiceImpl extends ServiceImpl<ErpPurchaseAdj
     private ErpOrgEntityMapper orgMapper;
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public List<ErpPurchaseAdjustmentEntity> queryByDate(String beginDateStr, String endDateStr) {
         String filterString = "";
         if (StrUtil.isNotBlank(beginDateStr)) {
@@ -106,12 +102,20 @@ public class ErpPurchaseAdjustmentServiceImpl extends ServiceImpl<ErpPurchaseAdj
         ArrayList<ErpPurchaseAdjustmentLineEntity> insertLineList = new ArrayList<>();
         List<ErpPurchaseAdjustmentEntity> uniqueRequest = mergeDuplicateAdjustments(request);
         if (CollUtil.isNotEmpty(uniqueRequest)) {
+            Set<Long> ids = uniqueRequest.stream()
+                    .map(ErpPurchaseAdjustmentEntity::getId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+            Set<?> existIds = CollUtil.isEmpty(ids) ? Collections.emptySet() :
+                    baseMapper.selectByIds(ids)
+                            .stream()
+                            .map(ErpPurchaseAdjustmentEntity::getId)
+                            .filter(Objects::nonNull)
+                            .collect(Collectors.toSet());
             for (ErpPurchaseAdjustmentEntity entity : uniqueRequest) {
-                ErpPurchaseAdjustmentEntity byId = baseMapper.selectById(entity.getId());
-                if (CollUtil.isNotEmpty(entity.getEntries())) {
+                if(CollUtil.isNotEmpty(entity.getEntries())){
                     insertLineList.addAll(entity.getEntries());
-
-                    if (byId != null) {
+                    if(existIds.contains(entity.getId())){
                         Set<Long> entrySet = entity.getEntries().stream().map(ErpPurchaseAdjustmentLineEntity::getEntryId).collect(Collectors.toSet());
                         LambdaUpdateWrapper<ErpPurchaseAdjustmentLineEntity> updateWrapper = new LambdaUpdateWrapper<>();
                         updateWrapper.eq(ErpPurchaseAdjustmentLineEntity::getPId, entity.getId());
@@ -119,10 +123,10 @@ public class ErpPurchaseAdjustmentServiceImpl extends ServiceImpl<ErpPurchaseAdj
                         entryMapper.delete(updateWrapper);
                     }
                 }
-                if (byId == null) {
-                    insertList.add(entity);
-                } else {
+                if(existIds.contains(entity.getId())){
                     updateList.add(entity);
+                }else {
+                    insertList.add(entity);
                 }
             }
         }
@@ -204,15 +208,44 @@ public class ErpPurchaseAdjustmentServiceImpl extends ServiceImpl<ErpPurchaseAdj
         LocalDate yearStart = LocalDate.of(query.getYear(), 1, 1);
         LocalDate nextYearStart = yearStart.plusYears(1);
 
-        List<MaterialSupplierPriceLineRow> rows = baseMapper.selectMaterialSupplierPriceRows(
+        long total = Objects.requireNonNullElse(baseMapper.countMaterialSupplierPriceGroups(
                 yearStart,
                 nextYearStart,
                 query.getMaterialCode(),
                 query.getSupplierId(),
                 query.getUseOrgId()
+        ), 0L);
+        if (total == 0) {
+            return new Page<>(pageNo, pageSize, 0);
+        }
+
+        long offset = (long) (pageNo - 1) * pageSize;
+        List<MaterialSupplierPriceLineRow> pageGroups = baseMapper.selectMaterialSupplierPriceGroupPage(
+                yearStart,
+                nextYearStart,
+                query.getMaterialCode(),
+                query.getSupplierId(),
+                query.getUseOrgId(),
+                offset,
+                pageSize
+        );
+        Page<MaterialSupplierPriceVo> page = new Page<>(pageNo, pageSize, total);
+        if (CollUtil.isEmpty(pageGroups)) {
+            page.setRecords(List.of());
+            return page;
+        }
+
+        List<MaterialSupplierPriceLineRow> rows = baseMapper.selectMaterialSupplierPriceRowsByGroups(
+                yearStart,
+                nextYearStart,
+                query.getMaterialCode(),
+                query.getSupplierId(),
+                query.getUseOrgId(),
+                pageGroups
         );
         if (CollUtil.isEmpty(rows)) {
-            return new Page<>(pageNo, pageSize, 0);
+            page.setRecords(List.of());
+            return page;
         }
 
         Map<MaterialSupplierPriceGroupKey, List<MaterialSupplierPriceLineRow>> groupedRows = rows.stream()
@@ -226,13 +259,7 @@ public class ErpPurchaseAdjustmentServiceImpl extends ServiceImpl<ErpPurchaseAdj
                 .map(groupRows -> buildMaterialSupplierPriceVo(groupRows, query.getYear()))
                 .collect(Collectors.toList());
 
-        long total = groupedRecords.size();
-        long offset = (long) (pageNo - 1) * pageSize;
-        int fromIndex = offset >= total ? groupedRecords.size() : (int) offset;
-        int toIndex = Math.min(fromIndex + pageSize, groupedRecords.size());
-
-        Page<MaterialSupplierPriceVo> page = new Page<>(pageNo, pageSize, total);
-        page.setRecords(groupedRecords.subList(fromIndex, toIndex));
+        page.setRecords(groupedRecords);
         return page;
     }
 
