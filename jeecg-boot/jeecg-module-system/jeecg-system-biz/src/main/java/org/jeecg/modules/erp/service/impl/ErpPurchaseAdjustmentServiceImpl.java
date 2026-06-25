@@ -256,6 +256,7 @@ public class ErpPurchaseAdjustmentServiceImpl extends ServiceImpl<ErpPurchaseAdj
         }
         vo.setMonthlyPrices(monthlyPrices);
         vo.setAvgPrice(calculateAveragePrice(monthlyPrices));
+        vo.setChangeRate(calculateChangeRate(monthlyPrices));
         return vo;
     }
 
@@ -312,6 +313,17 @@ public class ErpPurchaseAdjustmentServiceImpl extends ServiceImpl<ErpPurchaseAdj
             return BigDecimal.ZERO;
         }
         return sum.divide(BigDecimal.valueOf(count), 2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal calculateChangeRate(Map<Integer, BigDecimal> monthlyPrices) {
+        BigDecimal firstMonthPrice = monthlyPrices.get(1);
+        BigDecimal lastMonthPrice = monthlyPrices.get(12);
+        if (firstMonthPrice == null || firstMonthPrice.compareTo(BigDecimal.ZERO) == 0 || lastMonthPrice == null) {
+            return BigDecimal.ZERO;
+        }
+        return lastMonthPrice.subtract(firstMonthPrice)
+                .multiply(BigDecimal.valueOf(100))
+                .divide(firstMonthPrice, 2, RoundingMode.HALF_UP);
     }
 
     private record MaterialSupplierPriceGroupKey(String materialId, String supplierId, String useOrgId) {

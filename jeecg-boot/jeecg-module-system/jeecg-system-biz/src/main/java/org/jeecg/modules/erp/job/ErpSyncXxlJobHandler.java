@@ -4,6 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson.JSONException;
 import com.alibaba.fastjson.JSONObject;
 import com.xxl.job.core.biz.model.ReturnT;
+import com.xxl.job.core.context.XxlJobHelper;
 import com.xxl.job.core.handler.annotation.XxlJob;
 import lombok.extern.slf4j.Slf4j;
 import org.jeecg.modules.erp.service.IErpMaterialService;
@@ -28,6 +29,8 @@ import java.util.function.BiFunction;
 @Slf4j
 @Component
 public class ErpSyncXxlJobHandler {
+
+    // todo 目前没有执行记录表，无法实现完整的增量同步
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("uuuu-MM-dd")
             .withResolverStyle(ResolverStyle.STRICT);
@@ -59,22 +62,26 @@ public class ErpSyncXxlJobHandler {
     }
 
     @XxlJob("erpMaterialSyncJob")
-    public ReturnT<String> erpMaterialSyncJob(String param) {
+    public ReturnT<String> erpMaterialSyncJob() {
+        String param = XxlJobHelper.getJobParam();
         return executeMonthlySync("物料", param, materialService::queryByDate);
     }
 
     @XxlJob("erpSupplierSyncJob")
-    public ReturnT<String> erpSupplierSyncJob(String param) {
+    public ReturnT<String> erpSupplierSyncJob() {
+        String param = XxlJobHelper.getJobParam();
         return executeMonthlySync("供应商", param, supplierService::queryByDate);
     }
 
     @XxlJob("erpPurchaseAdjustmentSyncJob")
-    public ReturnT<String> erpPurchaseAdjustmentSyncJob(String param) {
+    public ReturnT<String> erpPurchaseAdjustmentSyncJob() {
+        String param = XxlJobHelper.getJobParam();
         return executeMonthlySync("采购调价", param, purchaseAdjustmentService::queryByDate);
     }
 
     @XxlJob("erpOrgSyncJob")
-    public ReturnT<String> erpOrgSyncJob(String param) {
+    public ReturnT<String> erpOrgSyncJob() {
+        String param = XxlJobHelper.getJobParam();
         return executeMonthlySync("组织", param, orgService::queryByDate);
     }
 

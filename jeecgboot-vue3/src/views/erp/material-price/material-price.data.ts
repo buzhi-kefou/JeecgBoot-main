@@ -82,6 +82,16 @@ export const tableColumns: BasicColumn[] = [
     },
   },
   {
+    title: '变化率',
+    dataIndex: 'changeRate',
+    width: 100,
+    align: 'center',
+    customRender: ({ text }) => {
+      const rate = Number(text || 0);
+      return `${rate > 0 ? '+' : ''}${rate}%`;
+    },
+  },
+  {
     title: '记录数',
     dataIndex: 'recordCount',
     width: 100,

@@ -41,6 +41,10 @@
             <groupId>jakarta.servlet</groupId>
             <artifactId>jakarta.servlet-api</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.jeecgframework.boot3</groupId>
+            <artifactId>jeecg-boot-starter-job</artifactId>
+        </dependency>
         
         <!-- 分库分表示例 -->
      <!--  <dependency>

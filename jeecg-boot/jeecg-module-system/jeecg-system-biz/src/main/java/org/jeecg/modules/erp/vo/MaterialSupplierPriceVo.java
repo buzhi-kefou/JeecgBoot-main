@@ -36,6 +36,8 @@ public class MaterialSupplierPriceVo {
 
     private BigDecimal avgPrice;
 
+    private BigDecimal changeRate;
+
     private Integer recordCount;
 
 }

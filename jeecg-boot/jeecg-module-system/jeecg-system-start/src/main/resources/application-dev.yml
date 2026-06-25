@@ -290,12 +290,12 @@ jeecg:
       secret-key: ??
   #xxl-job配置
   xxljob:
-    enabled: false
-    adminAddresses: http://127.0.0.1:9080/xxl-job-admin
+    enabled: true
+    adminAddresses: http://192.168.9.41:9004
     appname: ${spring.application.name}
-    accessToken: ''
-    address: 127.0.0.1:30007
-    ip: 127.0.0.1
+    accessToken: 'default_token'
+#    address: 127.0.0.1:30007
+#    ip: 127.0.0.1
     port: 30007
     logPath: logs/jeecg/job/jobhandler/
     logRetentionDays: 30
