@@ -19,7 +19,11 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -82,12 +86,20 @@ public class ErpProductionOrderServiceImpl extends ServiceImpl<ErpProductionOrde
         List<ErpProductionOrderEntity> insertList = new ArrayList<>();
         List<ErpProductionOrderEntity> updateList = new ArrayList<>();
         if (CollUtil.isNotEmpty(request)) {
+            Set<String> ids = request.stream()
+                    .map(ErpProductionOrderEntity::getFid)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+            Set<String> existIds = CollUtil.isEmpty(ids) ? Collections.emptySet() :
+                    baseMapper.selectByIds(ids).stream()
+                            .map(ErpProductionOrderEntity::getFid)
+                            .filter(Objects::nonNull)
+                            .collect(Collectors.toSet());
             for (ErpProductionOrderEntity entity : request) {
-                ErpProductionOrderEntity byId = baseMapper.selectById(entity.getFid());
-                if (byId == null) {
-                    insertList.add(entity);
-                } else {
+                if (existIds.contains(entity.getFid())) {
                     updateList.add(entity);
+                } else {
+                    insertList.add(entity);
                 }
             }
         }

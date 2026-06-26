@@ -23,7 +23,11 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -88,12 +92,20 @@ public class ErpOrgServiceImpl extends ServiceImpl<ErpOrgEntityMapper, ErpOrgEnt
         List<ErpOrgEntity> insertList = new ArrayList<>();
         List<ErpOrgEntity> updateList = new ArrayList<>();
         if (CollUtil.isNotEmpty(request)) {
+            Set<Long> ids = request.stream()
+                    .map(ErpOrgEntity::getOrgId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+            Set<Long> existIds = CollUtil.isEmpty(ids) ? Collections.emptySet() :
+                    baseMapper.selectByIds(ids).stream()
+                            .map(ErpOrgEntity::getOrgId)
+                            .filter(Objects::nonNull)
+                            .collect(Collectors.toSet());
             for (ErpOrgEntity entity : request) {
-                ErpOrgEntity byId = baseMapper.selectById(entity.getOrgId());
-                if (byId == null) {
-                    insertList.add(entity);
-                } else {
+                if (existIds.contains(entity.getOrgId())) {
                     updateList.add(entity);
+                } else {
+                    insertList.add(entity);
                 }
             }
         }
