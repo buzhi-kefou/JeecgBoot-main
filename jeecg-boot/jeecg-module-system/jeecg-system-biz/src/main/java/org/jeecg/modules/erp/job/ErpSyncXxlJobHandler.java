@@ -8,7 +8,10 @@ import com.xxl.job.core.handler.annotation.XxlJob;
 import lombok.extern.slf4j.Slf4j;
 import org.jeecg.modules.erp.service.IErpMaterialService;
 import org.jeecg.modules.erp.service.IErpOrgService;
+import org.jeecg.modules.erp.service.IErpProductionOrderService;
 import org.jeecg.modules.erp.service.IErpPurchaseAdjustmentService;
+import org.jeecg.modules.erp.service.IErpSalesDeliveryOrderService;
+import org.jeecg.modules.erp.service.IErpSalesOrderService;
 import org.jeecg.modules.erp.service.IErpSupplierService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -38,25 +41,38 @@ public class ErpSyncXxlJobHandler {
     private final IErpSupplierService supplierService;
     private final IErpPurchaseAdjustmentService purchaseAdjustmentService;
     private final IErpOrgService orgService;
+    private final IErpSalesOrderService salesOrderService;
+    private final IErpProductionOrderService productionOrderService;
+    private final IErpSalesDeliveryOrderService salesDeliveryOrderService;
     private final LocalDate fixedCurrentDate;
 
     @Autowired
     public ErpSyncXxlJobHandler(IErpMaterialService materialService,
                                 IErpSupplierService supplierService,
                                 IErpPurchaseAdjustmentService purchaseAdjustmentService,
-                                IErpOrgService orgService) {
-        this(materialService, supplierService, purchaseAdjustmentService, orgService, null);
+                                IErpOrgService orgService,
+                                IErpSalesOrderService salesOrderService,
+                                IErpProductionOrderService productionOrderService,
+                                IErpSalesDeliveryOrderService salesDeliveryOrderService) {
+        this(materialService, supplierService, purchaseAdjustmentService, orgService, salesOrderService,
+                productionOrderService, salesDeliveryOrderService, null);
     }
 
     ErpSyncXxlJobHandler(IErpMaterialService materialService,
                          IErpSupplierService supplierService,
                          IErpPurchaseAdjustmentService purchaseAdjustmentService,
                          IErpOrgService orgService,
+                         IErpSalesOrderService salesOrderService,
+                         IErpProductionOrderService productionOrderService,
+                         IErpSalesDeliveryOrderService salesDeliveryOrderService,
                          LocalDate fixedCurrentDate) {
         this.materialService = materialService;
         this.supplierService = supplierService;
         this.purchaseAdjustmentService = purchaseAdjustmentService;
         this.orgService = orgService;
+        this.salesOrderService = salesOrderService;
+        this.productionOrderService = productionOrderService;
+        this.salesDeliveryOrderService = salesDeliveryOrderService;
         this.fixedCurrentDate = fixedCurrentDate;
     }
 
@@ -94,6 +110,33 @@ public class ErpSyncXxlJobHandler {
             param = LocalDate.now().format(DATE_FORMATTER);
         }
         executeMonthlySync("组织", param, orgService::queryByDate);
+    }
+
+    @XxlJob("erpSalesOrderSyncJob")
+    public void erpSalesOrderSyncJob() {
+        String param = XxlJobHelper.getJobParam();
+        if (StrUtil.isBlank(param)) {
+            param = LocalDate.now().format(DATE_FORMATTER);
+        }
+        executeMonthlySync("销售订单", param, salesOrderService::queryByDate);
+    }
+
+    @XxlJob("erpProductionOrderSyncJob")
+    public void erpProductionOrderSyncJob() {
+        String param = XxlJobHelper.getJobParam();
+        if (StrUtil.isBlank(param)) {
+            param = LocalDate.now().format(DATE_FORMATTER);
+        }
+        executeMonthlySync("生产订单", param, productionOrderService::queryByDate);
+    }
+
+    @XxlJob("erpSalesDeliveryOrderSyncJob")
+    public void erpSalesDeliveryOrderSyncJob() {
+        String param = XxlJobHelper.getJobParam();
+        if (StrUtil.isBlank(param)) {
+            param = LocalDate.now().format(DATE_FORMATTER);
+        }
+        executeMonthlySync("销售出库单", param, salesDeliveryOrderService::queryByDate);
     }
 
     private void executeMonthlySync(String jobName, String param,

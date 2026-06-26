@@ -36,6 +36,15 @@ public class ErpPurchaseAdjustmentController {
     @Resource
     private IErpOrgService erpOrgService;
 
+    @Resource
+    private IErpSalesOrderService erpSalesOrderService;
+
+    @Resource
+    private IErpProductionOrderService erpProductionOrderService;
+
+    @Resource
+    private IErpSalesDeliveryOrderService erpSalesDeliveryOrderService;
+
     @PostMapping("/testAuth")
     public Result<String> testAuth() {
         return Result.ok(erpAuthService.login());
@@ -63,6 +72,24 @@ public class ErpPurchaseAdjustmentController {
     public Result<Integer> queryOrg(@RequestParam(value = "beginStr", required = false) String beginStr,
                                          @RequestParam(value = "endStr", required = false) String endStr) {
         return Result.ok(erpOrgService.queryByDate(beginStr, endStr).size());
+    }
+
+    @PostMapping("/querySalesOrder")
+    public Result<Integer> querySalesOrder(@RequestParam(value = "beginStr", required = false) String beginStr,
+                                           @RequestParam(value = "endStr", required = false) String endStr) {
+        return Result.ok(erpSalesOrderService.queryByDate(beginStr, endStr).size());
+    }
+
+    @PostMapping("/queryProductionOrder")
+    public Result<Integer> queryProductionOrder(@RequestParam(value = "beginStr", required = false) String beginStr,
+                                                @RequestParam(value = "endStr", required = false) String endStr) {
+        return Result.ok(erpProductionOrderService.queryByDate(beginStr, endStr).size());
+    }
+
+    @PostMapping("/querySalesDeliveryOrder")
+    public Result<Integer> querySalesDeliveryOrder(@RequestParam(value = "beginStr", required = false) String beginStr,
+                                                   @RequestParam(value = "endStr", required = false) String endStr) {
+        return Result.ok(erpSalesDeliveryOrderService.queryByDate(beginStr, endStr).size());
     }
 
     @PostMapping("/queryMaterialSupplierPrice")
