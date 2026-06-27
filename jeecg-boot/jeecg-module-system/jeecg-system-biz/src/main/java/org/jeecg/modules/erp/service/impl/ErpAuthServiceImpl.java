@@ -24,7 +24,7 @@ public class ErpAuthServiceImpl implements IErpAuthService {
 
     @Resource
     private ErpConfigProperties erpConfigProperties;
-    @Resource
+    @Resource(name = "erpRestTemplate")
     private RestTemplate restTemplate;
 
     @Override

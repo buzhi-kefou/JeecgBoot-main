@@ -62,4 +62,19 @@ public class SysInterfaceLog implements Serializable {
     private String updateBy;
 
     private Date updateTime;
+
+    /**
+     * 重试状态：PENDING-待重试, RETRYING-重试中, SUCCESS-重试成功, FAILED-重试耗尽, SKIPPED-跳过
+     */
+    private String retryStatus;
+
+    /**
+     * 已重试次数
+     */
+    private Integer retryCount;
+
+    /**
+     * 下次重试时间
+     */
+    private Date nextRetryTime;
 }

@@ -1,11 +1,17 @@
 package org.jeecg.modules.erp.job;
 
 import cn.hutool.core.util.StrUtil;
+import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONException;
 import com.alibaba.fastjson.JSONObject;
+import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.xxl.job.core.context.XxlJobHelper;
 import com.xxl.job.core.handler.annotation.XxlJob;
 import lombok.extern.slf4j.Slf4j;
+import org.jeecg.modules.erp.dto.QueryDetailDto;
+import org.jeecg.modules.erp.dto.QueryDto;
+import org.jeecg.modules.erp.entity.ErpProductionOrderEntity;
+import org.jeecg.modules.erp.exception.ChunkSyncFailureException;
 import org.jeecg.modules.erp.service.IErpMaterialService;
 import org.jeecg.modules.erp.service.IErpOrgService;
 import org.jeecg.modules.erp.service.IErpProductionOrderService;
@@ -13,6 +19,8 @@ import org.jeecg.modules.erp.service.IErpPurchaseAdjustmentService;
 import org.jeecg.modules.erp.service.IErpSalesDeliveryOrderService;
 import org.jeecg.modules.erp.service.IErpSalesOrderService;
 import org.jeecg.modules.erp.service.IErpSupplierService;
+import org.jeecg.modules.system.entity.SysInterfaceLog;
+import org.jeecg.modules.system.service.ISysInterfaceLogService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -22,8 +30,10 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.function.BiFunction;
+import java.util.stream.Collectors;
 
 /**
  * ERP数据同步XXL-JOB入口。
@@ -44,6 +54,7 @@ public class ErpSyncXxlJobHandler {
     private final IErpSalesOrderService salesOrderService;
     private final IErpProductionOrderService productionOrderService;
     private final IErpSalesDeliveryOrderService salesDeliveryOrderService;
+    private final ISysInterfaceLogService interfaceLogService;
     private final LocalDate fixedCurrentDate;
 
     @Autowired
@@ -53,9 +64,10 @@ public class ErpSyncXxlJobHandler {
                                 IErpOrgService orgService,
                                 IErpSalesOrderService salesOrderService,
                                 IErpProductionOrderService productionOrderService,
-                                IErpSalesDeliveryOrderService salesDeliveryOrderService) {
+                                IErpSalesDeliveryOrderService salesDeliveryOrderService,
+                                ISysInterfaceLogService interfaceLogService) {
         this(materialService, supplierService, purchaseAdjustmentService, orgService, salesOrderService,
-                productionOrderService, salesDeliveryOrderService, null);
+                productionOrderService, salesDeliveryOrderService, interfaceLogService, null);
     }
 
     ErpSyncXxlJobHandler(IErpMaterialService materialService,
@@ -65,6 +77,7 @@ public class ErpSyncXxlJobHandler {
                          IErpSalesOrderService salesOrderService,
                          IErpProductionOrderService productionOrderService,
                          IErpSalesDeliveryOrderService salesDeliveryOrderService,
+                         ISysInterfaceLogService interfaceLogService,
                          LocalDate fixedCurrentDate) {
         this.materialService = materialService;
         this.supplierService = supplierService;
@@ -73,6 +86,7 @@ public class ErpSyncXxlJobHandler {
         this.salesOrderService = salesOrderService;
         this.productionOrderService = productionOrderService;
         this.salesDeliveryOrderService = salesDeliveryOrderService;
+        this.interfaceLogService = interfaceLogService;
         this.fixedCurrentDate = fixedCurrentDate;
     }
 
@@ -80,7 +94,7 @@ public class ErpSyncXxlJobHandler {
     public void erpMaterialSyncJob() {
         String param = XxlJobHelper.getJobParam();
         if (StrUtil.isBlank(param)) {
-            param = LocalDate.now().format(DATE_FORMATTER);
+            param = currentDate().format(DATE_FORMATTER);
         }
         executeMonthlySync("物料", param, materialService::queryByDate);
     }
@@ -89,7 +103,7 @@ public class ErpSyncXxlJobHandler {
     public void erpSupplierSyncJob() {
         String param = XxlJobHelper.getJobParam();
         if (StrUtil.isBlank(param)) {
-            param = LocalDate.now().format(DATE_FORMATTER);
+            param = currentDate().format(DATE_FORMATTER);
         }
         executeMonthlySync("供应商", param, supplierService::queryByDate);
     }
@@ -98,7 +112,7 @@ public class ErpSyncXxlJobHandler {
     public void erpPurchaseAdjustmentSyncJob() {
         String param = XxlJobHelper.getJobParam();
         if (StrUtil.isBlank(param)) {
-            param = LocalDate.now().format(DATE_FORMATTER);
+            param = currentDate().format(DATE_FORMATTER);
         }
         executeMonthlySync("采购调价", param, purchaseAdjustmentService::queryByDate);
     }
@@ -107,7 +121,7 @@ public class ErpSyncXxlJobHandler {
     public void erpOrgSyncJob() {
         String param = XxlJobHelper.getJobParam();
         if (StrUtil.isBlank(param)) {
-            param = LocalDate.now().format(DATE_FORMATTER);
+            param = currentDate().format(DATE_FORMATTER);
         }
         executeMonthlySync("组织", param, orgService::queryByDate);
     }
@@ -116,7 +130,7 @@ public class ErpSyncXxlJobHandler {
     public void erpSalesOrderSyncJob() {
         String param = XxlJobHelper.getJobParam();
         if (StrUtil.isBlank(param)) {
-            param = LocalDate.now().format(DATE_FORMATTER);
+            param = currentDate().format(DATE_FORMATTER);
         }
         executeMonthlySync("销售订单", param, salesOrderService::queryByDate);
     }
@@ -125,16 +139,114 @@ public class ErpSyncXxlJobHandler {
     public void erpProductionOrderSyncJob() {
         String param = XxlJobHelper.getJobParam();
         if (StrUtil.isBlank(param)) {
-            param = LocalDate.now().format(DATE_FORMATTER);
+            param = currentDate().format(DATE_FORMATTER);
         }
-        executeMonthlySync("生产订单", param, productionOrderService::queryByDate);
+        String finalParam = param;
+        List<DateRange> ranges;
+        try {
+            ranges = buildMonthlyRanges(extractBeginDate(finalParam), currentDate());
+        } catch (IllegalArgumentException e) {
+            String message = "ERP生产订单同步参数错误：" + e.getMessage();
+            log.error(message);
+            XxlJobHelper.log(message);
+            XxlJobHelper.handleFail(message);
+            return;
+        }
+        int totalCount = 0;
+        int failedRetryRecordCount = 0;
+        int failedRangeCount = 0;
+        for (DateRange range : ranges) {
+            try {
+                List<?> result = productionOrderService.queryByDate(range.beginDate(), range.endDate());
+                int count = result == null ? 0 : result.size();
+                totalCount += count;
+                String rangeMessage = "ERP生产订单同步完成，日期范围：" + range.beginDate() + " ~ " + range.endDate()
+                        + "，返回数量：" + count;
+                log.info(rangeMessage);
+                XxlJobHelper.log(rangeMessage);
+            } catch (ChunkSyncFailureException e) {
+                List<String> failedFids = e.getFailedEntities().stream()
+                        .map(ErpProductionOrderEntity::getFid)
+                        .filter(fid -> fid != null && !fid.isBlank())
+                        .distinct()
+                        .toList();
+                saveProductionOrderChunkRetryLog(failedFids, e);
+                failedRangeCount++;
+                failedRetryRecordCount += failedFids.size();
+                String message = "ERP生产订单同步部分chunk失败，日期范围：" + range.beginDate() + " ~ " + range.endDate()
+                        + "，失败记录数：" + failedFids.size()
+                        + "，已写入接口日志，等待 erpInterfaceRetryJob 自动重试，继续执行后续日期范围";
+                log.error(message);
+                XxlJobHelper.log(message);
+            } catch (RuntimeException e) {
+                String message = "ERP生产订单同步执行异常：日期范围：" + range.beginDate() + " ~ " + range.endDate()
+                        + "，异常信息：" + e.getMessage();
+                log.error(message, e);
+                XxlJobHelper.log(e);
+                XxlJobHelper.handleFail(message);
+                throw e;
+            }
+        }
+        String message = "ERP生产订单同步完成，执行月份数：" + ranges.size() + "，返回总数：" + totalCount;
+        if (failedRetryRecordCount > 0) {
+            message += "，chunk失败月份数：" + failedRangeCount + "，失败记录数：" + failedRetryRecordCount
+                    + "，已写入接口日志等待重试";
+        }
+        log.info(message);
+        XxlJobHelper.log(message);
+        XxlJobHelper.handleSuccess(message);
+    }
+
+    private void saveProductionOrderChunkRetryLog(List<String> failedFids, ChunkSyncFailureException e) {
+        if (failedFids.isEmpty()) {
+            return;
+        }
+        QueryDto queryDto = buildProductionOrderChunkRetryQuery(failedFids);
+        Date now = new Date();
+        SysInterfaceLog logEntity = new SysInterfaceLog();
+        logEntity.setId(IdWorker.getIdStr());
+        logEntity.setTraceId(IdWorker.getIdStr());
+        logEntity.setBizType("ERP_SYNC");
+        logEntity.setBizName("ERP生产订单chunk重试");
+        logEntity.setSourceService("ErpSyncXxlJobHandler");
+        logEntity.setInterfaceName("PRD_MO");
+        logEntity.setRequestMethod("POST");
+        logEntity.setRequestBody(JSON.toJSONString(queryDto));
+        logEntity.setSuccess(false);
+        logEntity.setErrorType(e.getClass().getName());
+        logEntity.setErrorMessage(e.getMessage());
+        logEntity.setStartTime(now);
+        logEntity.setEndTime(now);
+        logEntity.setCreateTime(now);
+        logEntity.setRetryStatus("PENDING");
+        logEntity.setRetryCount(0);
+        logEntity.setNextRetryTime(now);
+        interfaceLogService.save(logEntity);
+    }
+
+    private QueryDto buildProductionOrderChunkRetryQuery(List<String> failedFids) {
+        QueryDetailDto detailDto = new QueryDetailDto();
+        detailDto.setFormId("PRD_MO");
+        detailDto.setFieldKeys(new ErpProductionOrderEntity());
+        detailDto.setFilterString("FID in (" + failedFids.stream()
+                .map(this::quoteErpFilterValue)
+                .collect(Collectors.joining(",")) + ")");
+        detailDto.setOrderString("FModifyDate desc");
+
+        QueryDto queryDto = new QueryDto();
+        queryDto.setParameters(List.of(detailDto));
+        return queryDto;
+    }
+
+    private String quoteErpFilterValue(String value) {
+        return "'" + value.replace("'", "''") + "'";
     }
 
     @XxlJob("erpSalesDeliveryOrderSyncJob")
     public void erpSalesDeliveryOrderSyncJob() {
         String param = XxlJobHelper.getJobParam();
         if (StrUtil.isBlank(param)) {
-            param = LocalDate.now().format(DATE_FORMATTER);
+            param = currentDate().format(DATE_FORMATTER);
         }
         executeMonthlySync("销售出库单", param, salesDeliveryOrderService::queryByDate);
     }

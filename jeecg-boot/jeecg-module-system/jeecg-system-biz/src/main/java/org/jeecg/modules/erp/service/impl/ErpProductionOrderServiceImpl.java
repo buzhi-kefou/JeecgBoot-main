@@ -9,8 +9,10 @@ import org.jeecg.modules.erp.dto.QueryDetailDto;
 import org.jeecg.modules.erp.dto.QueryDto;
 import org.jeecg.modules.erp.entity.ErpProductionOrderEntity;
 import org.jeecg.modules.erp.mapper.ErpProductionOrderEntityMapper;
+import org.jeecg.modules.erp.exception.ChunkSyncFailureException;
 import org.jeecg.modules.erp.service.ErpRequestService;
 import org.jeecg.modules.erp.service.IErpProductionOrderService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -35,6 +37,9 @@ public class ErpProductionOrderServiceImpl extends ServiceImpl<ErpProductionOrde
 
     @Resource
     private TransactionTemplate transactionTemplate;
+
+    @Value("${erp.sync.batch-size:500}")
+    private int batchSize;
 
     @Override
     public List<ErpProductionOrderEntity> queryByDate(String beginDateStr, String endDateStr) {
@@ -74,33 +79,70 @@ public class ErpProductionOrderServiceImpl extends ServiceImpl<ErpProductionOrde
         queryDto.setParameters(List.of(detailDto));
 
         List<ErpProductionOrderEntity> request = erpRequestService.request(queryDto, ErpProductionOrderEntity.class);
-        transactionTemplate.execute(status -> {
-            saveOrUpdateProductionOrders(request);
-            return null;
-        });
+        saveOrUpdateProductionOrders(request);
 
         return request;
     }
 
     private void saveOrUpdateProductionOrders(List<ErpProductionOrderEntity> request) {
+        if (CollUtil.isEmpty(request)) {
+            return;
+        }
+        int total = request.size();
+        int effectiveBatchSize = batchSize > 0 ? batchSize : 500;
+        int totalChunks = (total + effectiveBatchSize - 1) / effectiveBatchSize;
+        List<ErpProductionOrderEntity> failedEntities = new ArrayList<>();
+        log.info("erp production order sync: start processing {} records, batch size = {}, chunks = {}",
+                total, effectiveBatchSize, totalChunks);
+
+        for (int i = 0; i < total; i += effectiveBatchSize) {
+            int end = Math.min(i + effectiveBatchSize, total);
+            List<ErpProductionOrderEntity> chunk = request.subList(i, end);
+            int chunkIndex = i / effectiveBatchSize + 1;
+            try {
+                transactionTemplate.execute(status -> {
+                    processChunkByUpsert(chunk);
+                    return null;
+                });
+                log.info("erp production order sync: chunk {}/{} done (records {}-{})",
+                        chunkIndex, totalChunks, i + 1, end);
+            } catch (Exception e) {
+                failedEntities.addAll(chunk);
+                log.error("erp production order sync: chunk {}/{} failed (records {}-{}), skipping",
+                        chunkIndex, totalChunks, i + 1, end, e);
+            }
+        }
+
+        if (!failedEntities.isEmpty()) {
+            throw new ChunkSyncFailureException(
+                    String.format("erp production order sync: %d/%d chunks failed, re-schedule erpProductionOrderChunkRetryJob",
+                            failedEntities.size(), total),
+                    failedEntities);
+        }
+        log.info("erp production order sync: all {} chunks completed successfully", totalChunks);
+    }
+
+    private void processChunkByUpsert(List<ErpProductionOrderEntity> chunk) {
+        baseMapper.upsertBatch(chunk);
+    }
+
+    private void processChunk(List<ErpProductionOrderEntity> chunk) {
+        Set<String> ids = chunk.stream()
+                .map(ErpProductionOrderEntity::getFid)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Set<String> existIds = CollUtil.isEmpty(ids) ? Collections.emptySet() :
+                baseMapper.selectByIds(ids).stream()
+                        .map(ErpProductionOrderEntity::getFid)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toSet());
         List<ErpProductionOrderEntity> insertList = new ArrayList<>();
         List<ErpProductionOrderEntity> updateList = new ArrayList<>();
-        if (CollUtil.isNotEmpty(request)) {
-            Set<String> ids = request.stream()
-                    .map(ErpProductionOrderEntity::getFid)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toSet());
-            Set<String> existIds = CollUtil.isEmpty(ids) ? Collections.emptySet() :
-                    baseMapper.selectByIds(ids).stream()
-                            .map(ErpProductionOrderEntity::getFid)
-                            .filter(Objects::nonNull)
-                            .collect(Collectors.toSet());
-            for (ErpProductionOrderEntity entity : request) {
-                if (existIds.contains(entity.getFid())) {
-                    updateList.add(entity);
-                } else {
-                    insertList.add(entity);
-                }
+        for (ErpProductionOrderEntity entity : chunk) {
+            if (existIds.contains(entity.getFid())) {
+                updateList.add(entity);
+            } else {
+                insertList.add(entity);
             }
         }
 

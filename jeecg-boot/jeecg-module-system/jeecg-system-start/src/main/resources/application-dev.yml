@@ -115,11 +115,13 @@ spring:
     druid:
       stat-view-servlet:
         enabled: true
+        url-pattern: /druid/*
         loginUsername: admin
         loginPassword: 123456
         allow:
       web-stat-filter:
         enabled: true
+        url-pattern: /*
     dynamic:
       druid:
         # 连接池的配置信息
@@ -142,14 +144,15 @@ spring:
         poolPreparedStatements: true
         maxPoolPreparedStatementPerConnectionSize: 20
         # 配置监控统计拦截的filters，去掉后监控界面sql无法统计，'wall'用于防火墙
-        filters: stat,slf4j
+        filters: stat,wall,slf4j
         # 允许SELECT语句的WHERE子句是一个永真条件
         wall:
           selectWhereAlwayTrueCheck: false
         # 打开mergeSql功能；慢SQL记录
         stat:
-          merge-sql: false
-          slow-sql-millis: 5000
+          merge-sql: true
+          slow-sql-millis: 1000
+          log-slow-sql: true
       datasource:
         master:
           url: jdbc:mysql://192.168.9.41:3306/appdb?characterEncoding=UTF-8&useUnicode=true&useSSL=false&tinyInt1isBit=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
@@ -191,10 +194,10 @@ jeecg:
   custom-resource-prefix-path:
   # AI集成
   ai-chat:
-    enabled: false
-    model: deepseek-chat
-    apiKey: ??
-    apiHost: https://api.deepseek.com/v1
+    enabled: true
+    model: glm-5
+    apiKey: sk-746c406d69b048b5943a5c94e18f85ed
+    apiHost: https://ws-2l6cqlrcxwcbuo3s.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
     timeout: 60
   # AIRag向量库
   ai-rag:

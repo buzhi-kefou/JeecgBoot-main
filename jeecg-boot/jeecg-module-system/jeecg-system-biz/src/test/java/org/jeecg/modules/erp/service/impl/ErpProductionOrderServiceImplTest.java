@@ -11,7 +11,6 @@ import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -20,6 +19,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 class ErpProductionOrderServiceImplTest {
@@ -42,13 +42,9 @@ class ErpProductionOrderServiceImplTest {
             events.add("request");
             return erpProductionOrders;
         });
-        when(productionOrderMapper.selectById("2001")).thenAnswer(invocation -> {
-            events.add("select-2001");
-            return null;
-        });
-        when(productionOrderMapper.selectById("2002")).thenAnswer(invocation -> {
-            events.add("select-2002");
-            return productionOrder("2002");
+        when(productionOrderMapper.upsertBatch(any())).thenAnswer(invocation -> {
+            events.add("upsert");
+            return 2;
         });
         when(transactionTemplate.execute(any())).thenAnswer(invocation -> {
             events.add("transaction-begin");
@@ -65,11 +61,10 @@ class ErpProductionOrderServiceImplTest {
         List<ErpProductionOrderEntity> result = service.queryByDate("2026-06-01", "2026-06-30");
 
         assertSame(erpProductionOrders, result);
-        assertEquals(List.of("2001"), service.inserted.stream().map(ErpProductionOrderEntity::getFid).toList());
-        assertEquals(List.of("2002"), service.updated.stream().map(ErpProductionOrderEntity::getFid).toList());
-        assertEquals(List.of("request", "transaction-begin", "select-2001", "select-2002", "save", "update",
-                "transaction-end"), events);
+        assertEquals(List.of("request", "transaction-begin", "upsert", "transaction-end"), events);
         verify(erpRequestService).request(any(QueryDto.class), eq(ErpProductionOrderEntity.class));
+        verify(productionOrderMapper).upsertBatch(erpProductionOrders);
+        verifyNoMoreInteractions(productionOrderMapper);
     }
 
     private static ErpProductionOrderEntity productionOrder(String fid) {
@@ -79,26 +74,10 @@ class ErpProductionOrderServiceImplTest {
     }
 
     private static class RecordingErpProductionOrderServiceImpl extends ErpProductionOrderServiceImpl {
-        private final List<ErpProductionOrderEntity> inserted = new ArrayList<>();
-        private final List<ErpProductionOrderEntity> updated = new ArrayList<>();
         private final List<String> events;
 
         private RecordingErpProductionOrderServiceImpl(List<String> events) {
             this.events = events;
-        }
-
-        @Override
-        public boolean saveBatch(Collection<ErpProductionOrderEntity> entityList) {
-            events.add("save");
-            inserted.addAll(entityList);
-            return true;
-        }
-
-        @Override
-        public boolean updateBatchById(Collection<ErpProductionOrderEntity> entityList) {
-            events.add("update");
-            updated.addAll(entityList);
-            return true;
         }
     }
 }
