@@ -66,7 +66,7 @@ public class SysInterfaceLogServiceImpl extends ServiceImpl<SysInterfaceLogMappe
         logEntity.setId(logId);
         logEntity.setSuccess(true);
         logEntity.setResponseStatus(responseStatus);
-        logEntity.setResponseBody(responseBody);
+//        logEntity.setResponseBody(responseBody);
         logEntity.setCostTime(costTime);
         logEntity.setEndTime(new Date());
         try {
