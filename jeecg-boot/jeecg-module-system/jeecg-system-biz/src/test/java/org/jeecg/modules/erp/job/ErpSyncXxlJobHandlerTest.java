@@ -5,6 +5,7 @@ import com.alibaba.fastjson.JSONObject;
 import com.xxl.job.core.context.XxlJobContext;
 import org.jeecg.modules.erp.entity.ErpProductionOrderEntity;
 import org.jeecg.modules.erp.exception.ChunkSyncFailureException;
+import org.jeecg.modules.erp.service.IErpDepartmentService;
 import org.jeecg.modules.erp.service.IErpMaterialService;
 import org.jeecg.modules.erp.service.IErpOrgService;
 import org.jeecg.modules.erp.service.IErpProductionOrderService;
@@ -37,6 +38,7 @@ class ErpSyncXxlJobHandlerTest {
     private final IErpSupplierService supplierService = mock(IErpSupplierService.class);
     private final IErpPurchaseAdjustmentService purchaseAdjustmentService = mock(IErpPurchaseAdjustmentService.class);
     private final IErpOrgService orgService = mock(IErpOrgService.class);
+    private final IErpDepartmentService departmentService = mock(IErpDepartmentService.class);
     private final IErpSalesOrderService salesOrderService = mock(IErpSalesOrderService.class);
     private final IErpProductionOrderService productionOrderService = mock(IErpProductionOrderService.class);
     private final IErpSalesDeliveryOrderService salesDeliveryOrderService = mock(IErpSalesDeliveryOrderService.class);
@@ -58,6 +60,19 @@ class ErpSyncXxlJobHandlerTest {
 
         verify(salesOrderService).queryByDate("2026-06-26", "2026-06-30");
     }
+
+    @Test
+    void erpDepartmentSyncJobUsesCurrentDateWhenParamIsBlank() {
+        when(departmentService.queryByDate("2026-06-26", "2026-06-30")).thenReturn(List.of());
+        XxlJobContext.setXxlJobContext(new XxlJobContext(1L, "", null, 0, 1));
+
+        ErpSyncXxlJobHandler handler = newHandler(LocalDate.of(2026, 6, 26));
+
+        handler.erpDepartmentSyncJob();
+
+        verify(departmentService).queryByDate("2026-06-26", "2026-06-30");
+    }
+
 
     @Test
     void erpProductionOrderSyncJobUsesCurrentDateWhenParamIsBlank() {
@@ -148,6 +163,7 @@ class ErpSyncXxlJobHandlerTest {
                 supplierService,
                 purchaseAdjustmentService,
                 orgService,
+                departmentService,
                 salesOrderService,
                 productionOrderService,
                 salesDeliveryOrderService,
