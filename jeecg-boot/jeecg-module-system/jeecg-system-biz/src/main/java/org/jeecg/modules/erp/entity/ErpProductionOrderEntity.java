@@ -1,12 +1,19 @@
 package org.jeecg.modules.erp.entity;
 
+import com.alibaba.fastjson.annotation.JSONField;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
+
+import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 金蝶云·星空 生产订单 DTO
@@ -36,35 +43,47 @@ public class ErpProductionOrderEntity extends ErpCommonEntity {
     private String documentStatus;
 
     /** 审核人 */
-    @JsonProperty("FApproverId")
+    @JsonProperty("FApproverId.fname")
     private String approverId;
 
     /** 审核日期 */
     @JsonProperty("FApproveDate")
-    private String approveDate;
+    @JSONField(format = "yyyy-MM-dd'T'HH:mm:ss")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime approveDate;
 
     /** 修改人 */
-    @JsonProperty("FModifierId")
+    @JsonProperty("FModifierId.fname")
     private String modifierId;
 
     /** 创建日期 */
     @JsonProperty("FCreateDate")
-    private String createDate;
+    @JSONField(format = "yyyy-MM-dd'T'HH:mm:ss")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime createDate;
 
     /** 创建人 */
-    @JsonProperty("FCreatorId")
+    @JsonProperty("FCreatorId.fname")
     private String creatorId;
 
     /** 修改日期 */
     @JsonProperty("FModifyDate")
-    private String modifyDate;
+    @JSONField(format = "yyyy-MM-dd'T'HH:mm:ss")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime modifyDate;
 
     /** 作废日期 */
     @JsonProperty("FCancelDate")
-    private String cancelDate;
+    @JSONField(format = "yyyy-MM-dd'T'HH:mm:ss")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime cancelDate;
 
     /** 作废人 */
-    @JsonProperty("FCanceler")
+    @JsonProperty("FCanceler.fname")
     private String canceler;
 
     /** 作废状态 */
@@ -76,7 +95,7 @@ public class ErpProductionOrderEntity extends ErpCommonEntity {
     private String description;
 
     /** 单据类型（必填项） */
-    @JsonProperty("FBillType")
+    @JsonProperty("FBillType.fname")
     private String billType;
 
     /** 受托 */
@@ -88,16 +107,19 @@ public class ErpProductionOrderEntity extends ErpCommonEntity {
     private String workShopId0;
 
     /** 生产组织（必填项） */
-    @JsonProperty("FPrdOrgId")
+    @JsonProperty("FPrdOrgId.fname")
     private String prdOrgId;
 
     /** 计划员 */
-    @JsonProperty("FPlannerID")
+    @JsonProperty("FPlannerID.fname")
     private String plannerId;
 
     /** 单据日期（必填项） */
     @JsonProperty("FDate")
-    private String date;
+    @JSONField(format = "yyyy-MM-dd'T'HH:mm:ss")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime date;
 
     /** 货主类型（必填项） */
     @JsonProperty("FOwnerTypeId")
@@ -108,7 +130,7 @@ public class ErpProductionOrderEntity extends ErpCommonEntity {
     private String ownerId;
 
     /** 计划组 */
-    @JsonProperty("FWorkGroupId")
+    @JsonProperty("FWorkGroupId.fname")
     private String workGroupId;
 
     /** 销售业务类型 */
@@ -151,11 +173,17 @@ public class ErpProductionOrderEntity extends ErpCommonEntity {
 
     /** 最后入库日期 */
     @JsonProperty("F_UKPT_ZHRKRQ")
-    private String ukptZhrkrq;
+    @JSONField(format = "yyyy-MM-dd'T'HH:mm:ss")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime ukptZhrkrq;
 
     /** 最早领料日期 */
     @JsonProperty("F_UKPT_ZZLLRQ")
-    private String ukptZzllrq;
+    @JSONField(format = "yyyy-MM-dd'T'HH:mm:ss")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime ukptZzllrq;
 
     /** 创建方式 */
     @JsonProperty("F_UKPT_CJFS")
@@ -168,4 +196,7 @@ public class ErpProductionOrderEntity extends ErpCommonEntity {
     /** 已领料天数 */
     @JsonProperty("F_XGBW_LLTS")
     private String xgbwLlts;
+
+    @TableField(exist = false)
+    private List<ErpProductionOrderLineEntity> entries;
 }

@@ -117,4 +117,68 @@
             xgbw_llts = VALUES(xgbw_llts)
     </insert>
 
+    <select id="customizeSelectPage" resultType="org.jeecg.modules.erp.vo.ProductionOrderListVo">
+        select
+            a.fid as fid -- 主键
+             ,a.bill_no as billNo -- 单据编号
+             ,a.document_status as documentStatus -- 单据状态
+             ,a.approver_id as approverId -- 审批人
+             ,a.approve_date as approveDate -- 审批日期
+             ,a.modifier_id as modifierId -- 修改人
+             ,a.create_date as createDate -- 创建日期
+             ,a.creator_id as creatorId -- 创建人
+             ,a.modify_date as modifyDate -- 修改日期
+             ,a.cancel_date as cancelDate -- 作废日期
+             ,a.canceler as canceler -- 作废人
+             ,a.cancel_status as cancelStatus -- 作废状态
+             ,a.description as description -- 备注
+             ,a.bill_type as billType -- 单据类型
+             ,a.prd_org_id as prdOrgId -- 生产组织
+             ,a.planner_id as plannerId -- 计划员
+             ,a.date as date -- 单据日期
+             ,a.work_group_id as workGroupId -- 计划组
+             ,a.ukpt_zhrkrq as ukptZhrkrq -- 最后入库时间
+             ,a.ukpt_zzllrq as ukptZzllrq -- 最早领料时间
+             ,b.f_entry_id as lineEntryId -- 明细主键
+             ,b.p_id as linePId -- 头表id
+             ,b.f_product_type as productType -- 产品类型
+             ,b.f_material_id as materialId -- 物料编码
+             ,b.f_material_number as materialNumber -- 物料编码
+             ,b.f_material_name as materialName -- 物料名称
+             ,b.f_specification as specification -- 规格
+             ,b.f_bom_id as bomId -- bom版本
+             ,b.f_status as lineStatus -- 业务状态
+             ,b.f_status_label as lineStatusLabel -- 业务状态
+             ,b.f_plan_start_date as planStartDate -- 计划开工
+             ,b.f_plan_finish_date as planFinishDate -- 计划完工
+             ,b.f_sale_order_no as saleOrderNo -- 需求单据
+             ,b.f_schedule_status as scheduleStatus -- 排产状态
+        from erp_production_order a
+                 left join erp_production_order_line b on a.fid = b.p_id
+        where a.document_status = 'C' and cast(b.f_status as unsigned) >= 3
+        <if test="query.billNo != null and query.billNo != '' ">
+            and a.bill_no like concat('%', #{query.billNo}, '%')
+        </if>
+        <if test="query.prdOrgId != null and query.prdOrgId != '' ">
+            and a.prd_org_id = #{query.prdOrgId}
+        </if>
+        <if test="query.materialId != null and query.materialId != '' ">
+            and b.f_material_number like concat('%', #{query.materialId}, '%')
+        </if>
+        <if test="query.planStartBegin != null and query.planStartBegin != '' ">
+            and b.f_plan_start_date &gt;= str_to_date(concat(#{query.planStartBegin}, ' 00:00:00'), '%Y-%m-%d %H:%i:%s')
+        </if>
+        <if test="query.planStartEnd != null and query.planStartEnd != '' ">
+            and b.f_plan_start_date &lt;= str_to_date(concat(#{query.planStartEnd}, ' 23:59:59'), '%Y-%m-%d %H:%i:%s')
+        </if>
+        <if test="query.planFinishBegin != null and query.planFinishBegin != '' ">
+            and b.f_plan_finish_date &gt;= str_to_date(concat(#{query.planFinishBegin}, ' 00:00:00'), '%Y-%m-%d %H:%i:%s')
+        </if>
+        <if test="query.planFinishEnd != null and query.planFinishEnd != '' ">
+            and b.f_plan_finish_date &lt;= str_to_date(concat(#{query.planFinishEnd}, ' 23:59:59'), '%Y-%m-%d %H:%i:%s')
+        </if>
+        order by a.date desc, a.bill_no desc, b.f_material_number desc
+
+    </select>
+
 </mapper>

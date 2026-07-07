@@ -7,10 +7,12 @@ import org.jeecg.common.api.vo.Result;
 import org.jeecg.modules.erp.dto.MaterialSupplierPriceQuery;
 import org.jeecg.modules.erp.dto.MaterialQuery;
 import org.jeecg.modules.erp.dto.OrgQuery;
+import org.jeecg.modules.erp.dto.ProductionOrderQuery;
 import org.jeecg.modules.erp.service.*;
 import org.jeecg.modules.erp.vo.MaterialSupplierPriceVo;
 import org.jeecg.modules.erp.vo.MaterialVo;
 import org.jeecg.modules.erp.vo.OrgVo;
+import org.jeecg.modules.erp.vo.ProductionOrderListVo;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -35,6 +37,9 @@ public class ErpPurchaseAdjustmentController {
 
     @Resource
     private IErpOrgService erpOrgService;
+
+    @Resource
+    private IErpDepartmentService erpDepartmentService;
 
     @Resource
     private IErpSalesOrderService erpSalesOrderService;
@@ -92,9 +97,20 @@ public class ErpPurchaseAdjustmentController {
         return Result.ok(erpSalesDeliveryOrderService.queryByDate(beginStr, endStr).size());
     }
 
+    @PostMapping("/queryDepartment")
+    public Result<Integer> queryDepartment(@RequestParam(value = "beginStr", required = false) String beginStr,
+                                                   @RequestParam(value = "endStr", required = false) String endStr) {
+        return Result.ok(erpDepartmentService.queryByDate(beginStr, endStr).size());
+    }
+
     @PostMapping("/queryMaterialSupplierPrice")
     public Result<Page<MaterialSupplierPriceVo>> queryMaterialSupplierPrice(@RequestBody @Validated MaterialSupplierPriceQuery query) {
         return Result.ok(erpPurchaseAdjustmentService.queryMaterialSupplierPrice(query));
+    }
+
+    @PostMapping("/queryProductionOrderList")
+    public Result<Page<ProductionOrderListVo>> queryProductionOrderList(@RequestBody ProductionOrderQuery query) {
+        return Result.ok(erpProductionOrderService.queryProductionOrderPage(query));
     }
 
     @PostMapping("/getMaterialCodeList")

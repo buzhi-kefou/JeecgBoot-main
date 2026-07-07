@@ -12,6 +12,7 @@ import org.jeecg.modules.erp.dto.QueryDetailDto;
 import org.jeecg.modules.erp.dto.QueryDto;
 import org.jeecg.modules.erp.entity.ErpProductionOrderEntity;
 import org.jeecg.modules.erp.exception.ChunkSyncFailureException;
+import org.jeecg.modules.erp.service.IErpDepartmentService;
 import org.jeecg.modules.erp.service.IErpMaterialService;
 import org.jeecg.modules.erp.service.IErpOrgService;
 import org.jeecg.modules.erp.service.IErpProductionOrderService;
@@ -51,6 +52,7 @@ public class ErpSyncXxlJobHandler {
     private final IErpSupplierService supplierService;
     private final IErpPurchaseAdjustmentService purchaseAdjustmentService;
     private final IErpOrgService orgService;
+    private final IErpDepartmentService departmentService;
     private final IErpSalesOrderService salesOrderService;
     private final IErpProductionOrderService productionOrderService;
     private final IErpSalesDeliveryOrderService salesDeliveryOrderService;
@@ -62,18 +64,20 @@ public class ErpSyncXxlJobHandler {
                                 IErpSupplierService supplierService,
                                 IErpPurchaseAdjustmentService purchaseAdjustmentService,
                                 IErpOrgService orgService,
+                                IErpDepartmentService departmentService,
                                 IErpSalesOrderService salesOrderService,
                                 IErpProductionOrderService productionOrderService,
                                 IErpSalesDeliveryOrderService salesDeliveryOrderService,
                                 ISysInterfaceLogService interfaceLogService) {
-        this(materialService, supplierService, purchaseAdjustmentService, orgService, salesOrderService,
-                productionOrderService, salesDeliveryOrderService, interfaceLogService, null);
+        this(materialService, supplierService, purchaseAdjustmentService, orgService, departmentService,
+                salesOrderService, productionOrderService, salesDeliveryOrderService, interfaceLogService, null);
     }
 
     ErpSyncXxlJobHandler(IErpMaterialService materialService,
                          IErpSupplierService supplierService,
                          IErpPurchaseAdjustmentService purchaseAdjustmentService,
                          IErpOrgService orgService,
+                         IErpDepartmentService departmentService,
                          IErpSalesOrderService salesOrderService,
                          IErpProductionOrderService productionOrderService,
                          IErpSalesDeliveryOrderService salesDeliveryOrderService,
@@ -83,6 +87,7 @@ public class ErpSyncXxlJobHandler {
         this.supplierService = supplierService;
         this.purchaseAdjustmentService = purchaseAdjustmentService;
         this.orgService = orgService;
+        this.departmentService = departmentService;
         this.salesOrderService = salesOrderService;
         this.productionOrderService = productionOrderService;
         this.salesDeliveryOrderService = salesDeliveryOrderService;
@@ -124,6 +129,15 @@ public class ErpSyncXxlJobHandler {
             param = currentDate().format(DATE_FORMATTER);
         }
         executeMonthlySync("组织", param, orgService::queryByDate);
+    }
+
+    @XxlJob("erpDepartmentSyncJob")
+    public void erpDepartmentSyncJob() {
+        String param = XxlJobHelper.getJobParam();
+        if (StrUtil.isBlank(param)) {
+            param = currentDate().format(DATE_FORMATTER);
+        }
+        executeMonthlySync("部门", param, departmentService::queryByDate);
     }
 
     @XxlJob("erpSalesOrderSyncJob")

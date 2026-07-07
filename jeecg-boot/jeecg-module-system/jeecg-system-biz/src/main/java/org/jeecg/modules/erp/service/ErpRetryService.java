@@ -38,6 +38,7 @@ public class ErpRetryService {
             "BD_Supplier", ErpSupplierEntity.class,
             "PUR_PAT", ErpPurchaseAdjustmentEntity.class,
             "ORG_Organizations", ErpOrgEntity.class,
+            "BD_Department", ErpDepartmentEntity.class,
             "SAL_SaleOrder", ErpSalesOrderEntity.class,
             "PRD_MO", ErpProductionOrderEntity.class,
             "SAL_OUTSTOCK", ErpSalesDeliveryOrderEntity.class
@@ -61,6 +62,7 @@ public class ErpRetryService {
                            IErpSupplierService supplierService,
                            IErpPurchaseAdjustmentService purchaseAdjustmentService,
                            IErpOrgService orgService,
+                           IErpDepartmentService departmentService,
                            IErpSalesOrderService salesOrderService,
                            IErpProductionOrderService productionOrderService,
                            IErpSalesDeliveryOrderService salesDeliveryOrderService) {
@@ -69,6 +71,7 @@ public class ErpRetryService {
                 "BD_Supplier", supplierService,
                 "PUR_PAT", purchaseAdjustmentService,
                 "ORG_Organizations", orgService,
+                "BD_Department", departmentService,
                 "SAL_SaleOrder", salesOrderService,
                 "PRD_MO", productionOrderService,
                 "SAL_OUTSTOCK", salesDeliveryOrderService
