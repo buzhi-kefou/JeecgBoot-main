@@ -152,13 +152,17 @@
 
 <script lang="ts" setup>
   import * as pdfjsLib from 'pdfjs-dist';
-  import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
+  import pdfWorkerSource from 'pdfjs-dist/build/pdf.worker.mjs?raw';
   import { computed, nextTick, onUnmounted, reactive, ref } from 'vue';
   import { PageWrapper } from '/@/components/Page';
   import { useMessage } from '/@/hooks/web/useMessage';
   import { getSipmDrawingImageBlob, querySipmDrawingList, SipmDrawingListResult, SipmDrawingRecord, SipmPartRecord } from './sipm-drawing.api';
 
-  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
+  const pdfWorkerBlobUrl =
+    typeof window === 'undefined' ? '' : URL.createObjectURL(new Blob([pdfWorkerSource], { type: 'text/javascript' }));
+  if (pdfWorkerBlobUrl) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerBlobUrl;
+  }
 
   const { createMessage } = useMessage();
 
@@ -305,6 +309,7 @@
       previewMode.value = 'image';
       await renderBlobToCanvas(previewBlobUrl.value);
     } catch (error) {
+      console.error('[SipmDrawingPreview] render failed', error);
       previewError.value = '图纸加载失败，当前文件流不是浏览器可直接渲染的图片或PDF';
     } finally {
       previewLoading.value = false;
@@ -393,28 +398,35 @@
     }
 
     const data = new Uint8Array(await blob.arrayBuffer());
-    const pdf = await pdfjsLib.getDocument({ data }).promise;
-    const page = await pdf.getPage(1);
-    const previewBody = previewViewportRef.value;
-    const baseViewport = page.getViewport({ scale: 1 });
-    const availableWidth = Math.max((previewBody?.clientWidth || baseViewport.width) - 24, 1);
-    const availableHeight = Math.max((previewBody?.clientHeight || baseViewport.height) - 24, 1);
-    const scale = Math.min(availableWidth / baseViewport.width, availableHeight / baseViewport.height);
-    const pixelRatio = window.devicePixelRatio || 1;
-    const viewport = page.getViewport({ scale: scale * pixelRatio });
+    const pdf = await loadPdfDocument(data);
+    try {
+      const page = await pdf.getPage(1);
+      const previewBody = previewViewportRef.value;
+      const baseViewport = page.getViewport({ scale: 1 });
+      const availableWidth = Math.max((previewBody?.clientWidth || baseViewport.width) - 24, 1);
+      const availableHeight = Math.max((previewBody?.clientHeight || baseViewport.height) - 24, 1);
+      const scale = Math.min(availableWidth / baseViewport.width, availableHeight / baseViewport.height);
+      const pixelRatio = window.devicePixelRatio || 1;
+      const viewport = page.getViewport({ scale: scale * pixelRatio });
 
-    canvas.width = Math.floor(viewport.width);
-    canvas.height = Math.floor(viewport.height);
-    previewBaseSize.width = Math.floor(baseViewport.width * scale);
-    previewBaseSize.height = Math.floor(baseViewport.height * scale);
-    canvas.style.width = '100%';
-    canvas.style.height = '100%';
-    previewScale.value = 1;
-    previewOffset.x = 0;
-    previewOffset.y = 0;
-    context.clearRect(0, 0, canvas.width, canvas.height);
-    await page.render({ canvasContext: context, viewport }).promise;
-    pdf.destroy();
+      canvas.width = Math.floor(viewport.width);
+      canvas.height = Math.floor(viewport.height);
+      previewBaseSize.width = Math.floor(baseViewport.width * scale);
+      previewBaseSize.height = Math.floor(baseViewport.height * scale);
+      canvas.style.width = '100%';
+      canvas.style.height = '100%';
+      previewScale.value = 1;
+      previewOffset.x = 0;
+      previewOffset.y = 0;
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      await page.render({ canvasContext: context, viewport }).promise;
+    } finally {
+      pdf.destroy();
+    }
+  }
+
+  async function loadPdfDocument(data: Uint8Array) {
+    return await pdfjsLib.getDocument({ data: data.slice() }).promise;
   }
 
   function setCanvasDisplaySize(canvas: HTMLCanvasElement, width: number, height: number) {
