@@ -109,8 +109,7 @@
       <a-modal
         v-model:open="previewOpen"
         :title="previewTitle"
-        :width="'88%'"
-        :height="'88%'"
+        :width="'94vw'"
         :footer="null"
         destroy-on-close
         wrap-class-name="sipm-preview-modal"
@@ -118,20 +117,26 @@
       >
         <div class="sipm-preview-modal__toolbar">
           <div class="sipm-preview-modal__name">{{ selectedRecord?.name || selectedRecord?.objNo || '图纸预览' }}</div>
-          <a-button v-if="previewBlobUrl" type="link" size="small" @click="openPreview">新窗口打开</a-button>
+          <div class="sipm-preview-modal__actions">
+            <a-button size="small" :disabled="!canAdjustPreview" @click="zoomOutPreview">缩小</a-button>
+            <a-button size="small" :disabled="!canAdjustPreview" @click="zoomInPreview">放大</a-button>
+            <a-button size="small" :disabled="!canAdjustPreview" @click="fitPreview">适配</a-button>
+            <a-button size="small" :disabled="!canAdjustPreview" @click="actualSizePreview">100%</a-button>
+            <span class="sipm-preview-modal__scale">{{ Math.round(previewScale * 100) }}%</span>
+            <a-button v-if="previewBlobUrl" type="link" size="small" @click="openPreview">新窗口打开</a-button>
+          </div>
         </div>
-        <div class="sipm-preview-modal__body">
+        <div
+          ref="previewViewportRef"
+          class="sipm-preview-modal__body"
+          :class="{ 'is-dragging': previewDragging }"
+          @wheel.prevent="handlePreviewWheel"
+          @mousedown="handlePreviewDragStart"
+        >
           <a-spin v-if="previewLoading" tip="图纸加载中..." />
-          <iframe
-            v-if="!previewLoading && !previewError && previewMode === 'pdf'"
-            class="sipm-preview-modal__frame"
-            :src="previewBlobUrl"
-          ></iframe>
-          <canvas
-            v-show="!previewLoading && !previewError && previewMode === 'image'"
-            ref="previewCanvasRef"
-            class="sipm-preview-modal__canvas"
-          ></canvas>
+          <div v-show="!previewLoading && !previewError && previewMode" class="sipm-preview-modal__stage" :style="previewStageStyle">
+            <canvas ref="previewCanvasRef" class="sipm-preview-modal__canvas"></canvas>
+          </div>
           <a-empty v-if="!previewLoading && previewError" :description="previewError" />
         </div>
       </a-modal>
@@ -146,10 +151,14 @@
 </script>
 
 <script lang="ts" setup>
-  import { computed, nextTick, ref } from 'vue';
+  import * as pdfjsLib from 'pdfjs-dist';
+  import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
+  import { computed, nextTick, onUnmounted, reactive, ref } from 'vue';
   import { PageWrapper } from '/@/components/Page';
   import { useMessage } from '/@/hooks/web/useMessage';
   import { getSipmDrawingImageBlob, querySipmDrawingList, SipmDrawingListResult, SipmDrawingRecord, SipmPartRecord } from './sipm-drawing.api';
+
+  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
   const { createMessage } = useMessage();
 
@@ -164,9 +173,21 @@
   const previewMode = ref<'pdf' | 'image' | ''>('');
   const previewOpen = ref(false);
   const previewCanvasRef = ref<HTMLCanvasElement | null>(null);
+  const previewViewportRef = ref<HTMLDivElement | null>(null);
+  const previewScale = ref(1);
+  const previewOffset = reactive({ x: 0, y: 0 });
+  const previewBaseSize = reactive({ width: 0, height: 0 });
+  const previewDragging = ref(false);
+  const previewDragStart = reactive({ x: 0, y: 0, offsetX: 0, offsetY: 0 });
 
   const total = computed(() => records.value.length);
   const previewTitle = computed(() => `图纸预览${selectedRecord.value?.objNo ? ` - ${selectedRecord.value.objNo}` : ''}`);
+  const canAdjustPreview = computed(() => !previewLoading.value && !previewError.value && !!previewMode.value);
+  const previewStageStyle = computed(() => ({
+    width: `${previewBaseSize.width}px`,
+    height: `${previewBaseSize.height}px`,
+    transform: `translate(-50%, -50%) translate(${previewOffset.x}px, ${previewOffset.y}px) scale(${previewScale.value})`,
+  }));
   const partForm = computed(() => ({
     objNo: partInfo.value?.objNo || '',
     name: partInfo.value?.name || '',
@@ -261,8 +282,10 @@
     previewOpen.value = true;
     previewLoading.value = true;
     previewError.value = '';
+    resetPreviewTransform();
     await nextTick();
     try {
+      await waitForPreviewCanvas();
       const response = await getSipmDrawingImageBlob(record.objId);
       const blob = response.data;
       if (!blob || blob.size === 0) {
@@ -271,8 +294,10 @@
       }
       if (await isPdfBlob(blob)) {
         resetPreviewBlob();
-        previewBlobUrl.value = URL.createObjectURL(toTypedPdfBlob(blob));
+        const pdfBlob = toTypedPdfBlob(blob);
+        previewBlobUrl.value = URL.createObjectURL(pdfBlob);
         previewMode.value = 'pdf';
+        await renderPdfToCanvas(pdfBlob);
         return;
       }
       resetPreviewBlob();
@@ -295,6 +320,7 @@
   function handlePreviewClose() {
     resetPreviewBlob();
     previewError.value = '';
+    resetPreviewTransform();
   }
 
   function resetPreviewBlob() {
@@ -303,6 +329,15 @@
       previewBlobUrl.value = '';
     }
     previewMode.value = '';
+  }
+
+  function resetPreviewTransform() {
+    previewScale.value = 1;
+    previewOffset.x = 0;
+    previewOffset.y = 0;
+    previewBaseSize.width = 0;
+    previewBaseSize.height = 0;
+    previewDragging.value = false;
   }
 
   async function isPdfBlob(blob: Blob) {
@@ -317,6 +352,17 @@
     return blob.type?.toLowerCase().includes('pdf') ? blob : new Blob([blob], { type: 'application/pdf' });
   }
 
+  async function waitForPreviewCanvas() {
+    for (let i = 0; i < 5; i++) {
+      await nextTick();
+      if (previewCanvasRef.value && previewViewportRef.value) {
+        return;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 30));
+    }
+    throw new Error('preview canvas unavailable');
+  }
+
   function renderBlobToCanvas(url: string) {
     return new Promise<void>((resolve, reject) => {
       const canvas = previewCanvasRef.value;
@@ -327,8 +373,7 @@
       }
       const image = new Image();
       image.onload = () => {
-        canvas.width = image.naturalWidth;
-        canvas.height = image.naturalHeight;
+        setCanvasDisplaySize(canvas, image.naturalWidth, image.naturalHeight);
         context.clearRect(0, 0, canvas.width, canvas.height);
         context.drawImage(image, 0, 0);
         resolve();
@@ -339,6 +384,126 @@
       image.src = url;
     });
   }
+
+  async function renderPdfToCanvas(blob: Blob) {
+    const canvas = previewCanvasRef.value;
+    const context = canvas?.getContext('2d');
+    if (!canvas || !context) {
+      throw new Error('canvas unavailable');
+    }
+
+    const data = new Uint8Array(await blob.arrayBuffer());
+    const pdf = await pdfjsLib.getDocument({ data }).promise;
+    const page = await pdf.getPage(1);
+    const previewBody = previewViewportRef.value;
+    const baseViewport = page.getViewport({ scale: 1 });
+    const availableWidth = Math.max((previewBody?.clientWidth || baseViewport.width) - 24, 1);
+    const availableHeight = Math.max((previewBody?.clientHeight || baseViewport.height) - 24, 1);
+    const scale = Math.min(availableWidth / baseViewport.width, availableHeight / baseViewport.height);
+    const pixelRatio = window.devicePixelRatio || 1;
+    const viewport = page.getViewport({ scale: scale * pixelRatio });
+
+    canvas.width = Math.floor(viewport.width);
+    canvas.height = Math.floor(viewport.height);
+    previewBaseSize.width = Math.floor(baseViewport.width * scale);
+    previewBaseSize.height = Math.floor(baseViewport.height * scale);
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    previewScale.value = 1;
+    previewOffset.x = 0;
+    previewOffset.y = 0;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    await page.render({ canvasContext: context, viewport }).promise;
+    pdf.destroy();
+  }
+
+  function setCanvasDisplaySize(canvas: HTMLCanvasElement, width: number, height: number) {
+    canvas.width = width;
+    canvas.height = height;
+    const previewBody = previewViewportRef.value;
+    const availableWidth = Math.max((previewBody?.clientWidth || width) - 24, 1);
+    const availableHeight = Math.max((previewBody?.clientHeight || height) - 24, 1);
+    const scale = Math.min(availableWidth / width, availableHeight / height, 1);
+    previewBaseSize.width = Math.floor(width * scale);
+    previewBaseSize.height = Math.floor(height * scale);
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    previewScale.value = 1;
+    previewOffset.x = 0;
+    previewOffset.y = 0;
+  }
+
+  function zoomInPreview() {
+    updatePreviewScale(previewScale.value * 1.2);
+  }
+
+  function zoomOutPreview() {
+    updatePreviewScale(previewScale.value / 1.2);
+  }
+
+  function fitPreview() {
+    previewScale.value = 1;
+    previewOffset.x = 0;
+    previewOffset.y = 0;
+  }
+
+  function actualSizePreview() {
+    const canvas = previewCanvasRef.value;
+    if (!canvas || !previewBaseSize.width || !previewBaseSize.height) {
+      return;
+    }
+    previewScale.value = clampScale(Math.min(canvas.width / previewBaseSize.width, canvas.height / previewBaseSize.height));
+    previewOffset.x = 0;
+    previewOffset.y = 0;
+  }
+
+  function updatePreviewScale(scale: number) {
+    previewScale.value = clampScale(scale);
+  }
+
+  function clampScale(scale: number) {
+    return Math.min(Math.max(scale, 0.2), 8);
+  }
+
+  function handlePreviewWheel(event: WheelEvent) {
+    if (!canAdjustPreview.value) {
+      return;
+    }
+    const nextScale = previewScale.value * (event.deltaY > 0 ? 0.9 : 1.1);
+    updatePreviewScale(nextScale);
+  }
+
+  function handlePreviewDragStart(event: MouseEvent) {
+    if (!canAdjustPreview.value || event.button !== 0) {
+      return;
+    }
+    previewDragging.value = true;
+    previewDragStart.x = event.clientX;
+    previewDragStart.y = event.clientY;
+    previewDragStart.offsetX = previewOffset.x;
+    previewDragStart.offsetY = previewOffset.y;
+    window.addEventListener('mousemove', handlePreviewDragMove);
+    window.addEventListener('mouseup', handlePreviewDragEnd);
+  }
+
+  function handlePreviewDragMove(event: MouseEvent) {
+    if (!previewDragging.value) {
+      return;
+    }
+    previewOffset.x = previewDragStart.offsetX + event.clientX - previewDragStart.x;
+    previewOffset.y = previewDragStart.offsetY + event.clientY - previewDragStart.y;
+  }
+
+  function handlePreviewDragEnd() {
+    previewDragging.value = false;
+    window.removeEventListener('mousemove', handlePreviewDragMove);
+    window.removeEventListener('mouseup', handlePreviewDragEnd);
+  }
+
+  onUnmounted(() => {
+    handlePreviewDragEnd();
+    resetPreviewBlob();
+  });
 
   function getRowClassName(record: SipmDrawingRecord) {
     return record.objId && selectedRecord.value?.objId === record.objId ? 'sipm-row-selected' : '';
@@ -620,9 +785,30 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: 36px;
+    gap: 12px;
+    min-height: 36px;
     padding: 0 2px 8px;
     color: #64748b;
+  }
+
+  :deep(.sipm-preview-modal .ant-modal) {
+    top: 24px;
+    max-width: calc(100vw - 32px);
+    padding-bottom: 0;
+  }
+
+  :deep(.sipm-preview-modal .ant-modal-content) {
+    height: calc(100vh - 48px);
+    display: flex;
+    flex-direction: column;
+  }
+
+  :deep(.sipm-preview-modal .ant-modal-body) {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+    padding: 10px 16px 16px;
   }
 
   .sipm-preview-modal__name {
@@ -632,27 +818,71 @@
     white-space: nowrap;
   }
 
+  .sipm-preview-modal__actions {
+    display: flex;
+    align-items: center;
+    flex: none;
+    gap: 6px;
+    white-space: nowrap;
+
+    :deep(.ant-btn) {
+      min-width: 48px;
+    }
+  }
+
+  .sipm-preview-modal__scale {
+    min-width: 44px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+    font-size: 12px;
+    color: #475569;
+    text-align: center;
+  }
+
   .sipm-preview-modal__body {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
-    height: calc(82vh - 120px);
-    min-height: 520px;
+    flex: none;
+    height: max(560px, calc(100vh - 150px));
+    min-height: 560px;
     overflow: hidden;
     border: 1px solid #cbd8df;
     border-radius: 4px;
+    cursor: grab;
+    user-select: none;
+    background:
+      linear-gradient(45deg, #eef3f6 25%, transparent 25%),
+      linear-gradient(-45deg, #eef3f6 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #eef3f6 75%),
+      linear-gradient(-45deg, transparent 75%, #eef3f6 75%),
+      #f8fafc;
+    background-position:
+      0 0,
+      0 8px,
+      8px -8px,
+      -8px 0;
+    background-size: 16px 16px;
+  }
+
+  .sipm-preview-modal__body.is-dragging {
+    cursor: grabbing;
+  }
+
+  .sipm-preview-modal__stage {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.22);
+    transform-origin: center center;
+    will-change: transform;
   }
 
   .sipm-preview-modal__canvas {
+    display: block;
     width: 100%;
     height: 100%;
-    object-fit: contain;
-  }
-
-  .sipm-preview-modal__frame {
-    width: 100%;
-    height: 100%;
-    border: 0;
+    background: #fff;
   }
 
   :deep(.sipm-row-selected td) {
