@@ -33,6 +33,9 @@ public class ErpPurchaseAdjustmentController {
     private IErpMaterialService erpMaterialService;
 
     @Resource
+    private IErpMaterialBillService erpMaterialBillService;
+
+    @Resource
     private IErpSupplierService erpSupplierService;
 
     @Resource
@@ -65,6 +68,12 @@ public class ErpPurchaseAdjustmentController {
     public Result<Integer> queryMaterial(@RequestParam(value = "beginStr", required = false) String beginStr,
                                          @RequestParam(value = "endStr", required = false) String endStr) {
         return Result.ok(erpMaterialService.queryByDate(beginStr, endStr).size());
+    }
+
+    @PostMapping("/queryMaterialBill")
+    public Result<Integer> queryMaterialBill(@RequestParam(value = "beginStr", required = false) String beginStr,
+                                             @RequestParam(value = "endStr", required = false) String endStr) {
+        return Result.ok(erpMaterialBillService.queryByDate(beginStr, endStr).size());
     }
 
     @PostMapping("/querySupplier")

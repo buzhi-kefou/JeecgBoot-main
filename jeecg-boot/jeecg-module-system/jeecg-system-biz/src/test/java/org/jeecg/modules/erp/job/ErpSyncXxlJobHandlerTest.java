@@ -6,6 +6,7 @@ import com.xxl.job.core.context.XxlJobContext;
 import org.jeecg.modules.erp.entity.ErpProductionOrderEntity;
 import org.jeecg.modules.erp.exception.ChunkSyncFailureException;
 import org.jeecg.modules.erp.service.IErpDepartmentService;
+import org.jeecg.modules.erp.service.IErpMaterialBillService;
 import org.jeecg.modules.erp.service.IErpMaterialService;
 import org.jeecg.modules.erp.service.IErpOrgService;
 import org.jeecg.modules.erp.service.IErpProductionOrderService;
@@ -35,6 +36,7 @@ import static org.mockito.Mockito.when;
 class ErpSyncXxlJobHandlerTest {
 
     private final IErpMaterialService materialService = mock(IErpMaterialService.class);
+    private final IErpMaterialBillService materialBillService = mock(IErpMaterialBillService.class);
     private final IErpSupplierService supplierService = mock(IErpSupplierService.class);
     private final IErpPurchaseAdjustmentService purchaseAdjustmentService = mock(IErpPurchaseAdjustmentService.class);
     private final IErpOrgService orgService = mock(IErpOrgService.class);
@@ -71,6 +73,18 @@ class ErpSyncXxlJobHandlerTest {
         handler.erpDepartmentSyncJob();
 
         verify(departmentService).queryByDate("2026-06-26", "2026-06-30");
+    }
+
+    @Test
+    void erpMaterialBillSyncJobUsesCurrentDateWhenParamIsBlank() {
+        when(materialBillService.queryByDate("2026-06-26", "2026-06-30")).thenReturn(List.of());
+        XxlJobContext.setXxlJobContext(new XxlJobContext(1L, "", null, 0, 1));
+
+        ErpSyncXxlJobHandler handler = newHandler(LocalDate.of(2026, 6, 26));
+
+        handler.erpMaterialBillSyncJob();
+
+        verify(materialBillService).queryByDate("2026-06-26", "2026-06-30");
     }
 
 
@@ -160,6 +174,7 @@ class ErpSyncXxlJobHandlerTest {
     private ErpSyncXxlJobHandler newHandler(LocalDate fixedCurrentDate) {
         return new ErpSyncXxlJobHandler(
                 materialService,
+                materialBillService,
                 supplierService,
                 purchaseAdjustmentService,
                 orgService,

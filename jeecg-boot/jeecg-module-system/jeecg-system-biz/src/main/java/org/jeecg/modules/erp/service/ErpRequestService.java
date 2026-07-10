@@ -332,7 +332,8 @@ public class ErpRequestService {
                 continue;
             }
             NestedFieldMapping mapping = entry.getKey();
-            Object nestedEntity = nestedObject.toJavaObject(mapping.entityType());
+            JSONObject convertedNestedObject = convertNestedObject(nestedObject, mapping);
+            Object nestedEntity = convertedNestedObject.toJavaObject(mapping.entityType());
             try {
                 mapping.collectionField().setAccessible(true);
                 mapping.collectionField().set(entity, List.of(nestedEntity));
@@ -342,10 +343,36 @@ public class ErpRequestService {
         }
     }
 
+    private static JSONObject convertNestedObject(JSONObject nestedObject, NestedFieldMapping mapping) {
+        JSONObject convertedObject = new JSONObject();
+        for (Map.Entry<String, Object> entry : nestedObject.entrySet()) {
+            String fieldName = entry.getKey();
+            Object value = entry.getValue();
+            Field targetField = mapping.fieldMap().get(fieldName);
+            if (targetField == null) {
+                convertedObject.put(fieldName, value);
+                continue;
+            }
+            try {
+                convertedObject.put(fieldName, normalizeErpValue(value, targetField));
+            } catch (NumberFormatException e) {
+                throw buildFieldNumberFormatException(fieldName, value, targetField, e);
+            }
+        }
+        return convertedObject;
+    }
+
     private static Object normalizeErpValue(Object value, Field targetField) {
         if (value instanceof String stringValue && targetField != null
                 && !String.class.equals(targetField.getType()) && StrUtil.isBlank(stringValue)) {
             return null;
+        }
+        if (value instanceof String stringValue && targetField != null && isNumberType(targetField.getType())) {
+            try {
+                return convertStringToNumber(stringValue, targetField.getType());
+            } catch (NumberFormatException e) {
+                throw buildFieldNumberFormatException(null, value, targetField, e);
+            }
         }
         if (!(value instanceof JSONArray array) || targetField == null) {
             return value;
@@ -362,33 +389,53 @@ public class ErpRequestService {
         Object singleValue = array.size() == 1 ? array.get(0) : value;
 
         // 对于数值类型，提供更详细的错误信息
-        if (targetField.getType() == BigDecimal.class || targetField.getType() == Integer.class ||
-            targetField.getType() == Long.class || targetField.getType() == Double.class ||
-            targetField.getType() == Float.class) {
-
+        if (isNumberType(targetField.getType())) {
             if (singleValue instanceof String strValue) {
                 try {
-                    if (targetField.getType() == BigDecimal.class) {
-                        return new BigDecimal(strValue);
-                    } else if (targetField.getType() == Integer.class) {
-                        return Integer.parseInt(strValue);
-                    } else if (targetField.getType() == Long.class) {
-                        return Long.parseLong(strValue);
-                    } else if (targetField.getType() == Double.class) {
-                        return Double.parseDouble(strValue);
-                    } else if (targetField.getType() == Float.class) {
-                        return Float.parseFloat(strValue);
-                    }
+                    return convertStringToNumber(strValue, targetField.getType());
                 } catch (NumberFormatException e) {
-                    throw new NumberFormatException(String.format(
-                        "字段 '%s' 无法将值 '%s' 转换为类型 %s: %s",
-                        targetField.getName(), strValue, targetField.getType().getSimpleName(), e.getMessage()
-                    ));
+                    throw buildFieldNumberFormatException(null, value, targetField, e);
                 }
             }
         }
 
         return singleValue;
+    }
+
+    private static boolean isNumberType(Class<?> type) {
+        return type == BigDecimal.class || type == Integer.class || type == Long.class
+                || type == Double.class || type == Float.class;
+    }
+
+    private static Object convertStringToNumber(String value, Class<?> targetType) {
+        if (targetType == BigDecimal.class) {
+            return new BigDecimal(value);
+        }
+        if (targetType == Integer.class) {
+            return Integer.parseInt(value);
+        }
+        if (targetType == Long.class) {
+            return Long.parseLong(value);
+        }
+        if (targetType == Double.class) {
+            return Double.parseDouble(value);
+        }
+        if (targetType == Float.class) {
+            return Float.parseFloat(value);
+        }
+        return value;
+    }
+
+    private static NumberFormatException buildFieldNumberFormatException(String fieldName, Object value,
+                                                                         Field targetField, NumberFormatException cause) {
+        JsonProperty jsonProperty = targetField.getAnnotation(JsonProperty.class);
+        String resolvedFieldName = StrUtil.isNotBlank(fieldName) ? fieldName
+                : jsonProperty == null ? targetField.getName() : jsonProperty.value();
+        NumberFormatException exception = new NumberFormatException(String.format(
+                "字段名: %s, 属性: %s, 值: '%s', 类型: %s, 原始错误: %s",
+                resolvedFieldName, targetField.getName(), value, targetField.getType().getSimpleName(), cause.getMessage()));
+        exception.initCause(cause);
+        return exception;
     }
 
     private record NestedFieldMapping(Field collectionField, Class<?> entityType, Map<String, Field> fieldMap) {

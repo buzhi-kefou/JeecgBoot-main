@@ -2,6 +2,8 @@ package org.jeecg.modules.erp.service;
 
 import org.jeecg.modules.erp.config.ErpConfigProperties;
 import org.jeecg.modules.erp.entity.ErpDepartmentEntity;
+import org.jeecg.modules.erp.entity.ErpMaterialBillEntity;
+import org.jeecg.modules.erp.entity.ErpMaterialBillLineEntity;
 import org.jeecg.modules.system.entity.SysInterfaceLog;
 import org.jeecg.modules.system.service.ISysInterfaceLogService;
 import org.junit.jupiter.api.Test;
@@ -23,6 +25,7 @@ import static org.mockito.Mockito.when;
 class ErpRetryServiceTest {
 
     private final IErpMaterialService materialService = mock(IErpMaterialService.class);
+    private final IErpMaterialBillService materialBillService = mock(IErpMaterialBillService.class);
     private final IErpSupplierService supplierService = mock(IErpSupplierService.class);
     private final IErpPurchaseAdjustmentService purchaseAdjustmentService = mock(IErpPurchaseAdjustmentService.class);
     private final IErpOrgService orgService = mock(IErpOrgService.class);
@@ -54,6 +57,7 @@ class ErpRetryServiceTest {
 
         ErpRetryService retryService = new ErpRetryService(
                 materialService,
+                materialBillService,
                 supplierService,
                 purchaseAdjustmentService,
                 orgService,
@@ -77,5 +81,50 @@ class ErpRetryServiceTest {
         assertEquals("D001", department.getFNumber());
         verify(interfaceLogService).markRetrying("log-001");
         verify(interfaceLogService).markRetrySuccess("log-001");
+    }
+
+    @Test
+    void retryFailedLogsSavesMaterialBillRowsWithMaterialBillServiceForBomFormId() {
+        SysInterfaceLog retryLog = new SysInterfaceLog();
+        retryLog.setId("log-002");
+        retryLog.setInterfaceName("ENG_BOM");
+        retryLog.setRequestBody("""
+                {"parameters":[{"fieldKeys":"FID,FTreeEntity_FENTRYID"}]}
+                """);
+        when(interfaceLogService.findRetryableLogs(100)).thenReturn(List.of(retryLog));
+        when(erpAuthService.login()).thenReturn("token-001");
+        when(erpConfigProperties.getHeaderKey()).thenReturn("kdservice-sessionid");
+        when(erpConfigProperties.getQueryUrl()).thenReturn("https://erp.example/query");
+        when(restTemplate.postForEntity(eq("https://erp.example/query"), any(), eq(String.class)))
+                .thenReturn(ResponseEntity.ok("""
+                        [[2001,3001]]
+                        """));
+
+        ErpRetryService retryService = new ErpRetryService(
+                materialService,
+                materialBillService,
+                supplierService,
+                purchaseAdjustmentService,
+                orgService,
+                departmentService,
+                salesOrderService,
+                productionOrderService,
+                salesDeliveryOrderService);
+        ReflectionTestUtils.setField(retryService, "interfaceLogService", interfaceLogService);
+        ReflectionTestUtils.setField(retryService, "erpAuthService", erpAuthService);
+        ReflectionTestUtils.setField(retryService, "restTemplate", restTemplate);
+        ReflectionTestUtils.setField(retryService, "erpConfigProperties", erpConfigProperties);
+
+        int successCount = retryService.retryFailedLogs();
+
+        assertEquals(1, successCount);
+        ArgumentCaptor<List<ErpMaterialBillEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(materialBillService).saveOrUpdateMaterialBills(captor.capture());
+        ErpMaterialBillEntity materialBill = captor.getValue().get(0);
+        assertEquals(2001L, materialBill.getId());
+        ErpMaterialBillLineEntity line = materialBill.getEntries().get(0);
+        assertEquals(3001L, line.getId());
+        verify(interfaceLogService).markRetrying("log-002");
+        verify(interfaceLogService).markRetrySuccess("log-002");
     }
 }

@@ -3,6 +3,7 @@ package org.jeecg.modules.erp.service;
 import org.jeecg.modules.erp.config.ErpConfigProperties;
 import org.jeecg.modules.erp.dto.QueryDetailDto;
 import org.jeecg.modules.erp.dto.QueryDto;
+import org.jeecg.modules.erp.entity.ErpMaterialBillEntity;
 import org.jeecg.modules.erp.entity.ErpOrgEntity;
 import org.jeecg.modules.system.dto.InterfaceLogContext;
 import org.jeecg.modules.system.entity.SysInterfaceLog;
@@ -132,6 +133,16 @@ class ErpRequestServiceTest {
         assertEquals(contexts.get(0).getTraceId(), contexts.get(1).getTraceId());
         verify(interfaceLogService).success(eq("log-1"), eq(200), eq("[[100,\"C\",\"A\"]]"), any(Long.class));
         verify(interfaceLogService).success(eq("log-2"), eq(200), eq("[]"), any(Long.class));
+    }
+
+    @Test
+    void parseRowsReportsNestedFieldWhenNumericConversionFails() {
+        NumberFormatException thrown = assertThrows(NumberFormatException.class, () ->
+                ErpRequestService.parseRows("[[1,\"一分厂\"]]", "FID,F_UKPT_YLZZ", ErpMaterialBillEntity.class));
+
+        assertEquals(true, thrown.getMessage().contains("字段名: F_UKPT_YLZZ"));
+        assertEquals(true, thrown.getMessage().contains("属性: ukptYlzz"));
+        assertEquals(true, thrown.getMessage().contains("值: '一分厂'"));
     }
 
     private static ErpRequestService service(RestTemplate restTemplate,

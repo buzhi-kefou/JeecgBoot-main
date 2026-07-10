@@ -41,10 +41,12 @@ public class ErpRetryService {
             "BD_Department", ErpDepartmentEntity.class,
             "SAL_SaleOrder", ErpSalesOrderEntity.class,
             "PRD_MO", ErpProductionOrderEntity.class,
-            "SAL_OUTSTOCK", ErpSalesDeliveryOrderEntity.class
+            "SAL_OUTSTOCK", ErpSalesDeliveryOrderEntity.class,
+            "ENG_BOM", ErpMaterialBillEntity.class
     );
 
     private final Map<String, IService<?>> formIdServiceMap;
+    private final IErpMaterialBillService materialBillService;
 
     @Resource
     private ISysInterfaceLogService interfaceLogService;
@@ -59,6 +61,7 @@ public class ErpRetryService {
     private RestTemplate restTemplate;
 
     public ErpRetryService(IErpMaterialService materialService,
+                           IErpMaterialBillService materialBillService,
                            IErpSupplierService supplierService,
                            IErpPurchaseAdjustmentService purchaseAdjustmentService,
                            IErpOrgService orgService,
@@ -66,6 +69,7 @@ public class ErpRetryService {
                            IErpSalesOrderService salesOrderService,
                            IErpProductionOrderService productionOrderService,
                            IErpSalesDeliveryOrderService salesDeliveryOrderService) {
+        this.materialBillService = materialBillService;
         formIdServiceMap = Map.of(
                 "BD_MATERIAL", materialService,
                 "BD_Supplier", supplierService,
@@ -74,7 +78,8 @@ public class ErpRetryService {
                 "BD_Department", departmentService,
                 "SAL_SaleOrder", salesOrderService,
                 "PRD_MO", productionOrderService,
-                "SAL_OUTSTOCK", salesDeliveryOrderService
+                "SAL_OUTSTOCK", salesDeliveryOrderService,
+                "ENG_BOM", materialBillService
         );
     }
 
@@ -149,7 +154,7 @@ public class ErpRetryService {
         @SuppressWarnings({"rawtypes"})
         List entities = ErpRequestService.parseRows(responseBody, fieldKeys, entityClass);
         if (!entities.isEmpty()) {
-            saveOrUpdateEntities(service, entities);
+            saveOrUpdateEntities(formId, service, entities);
             log.info("ERP接口重试保存成功，formId：{}，数量：{}", formId, entities.size());
         }
     }
@@ -168,7 +173,11 @@ public class ErpRetryService {
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
-    private void saveOrUpdateEntities(IService service, List entities) {
+    private void saveOrUpdateEntities(String formId, IService service, List entities) {
+        if ("ENG_BOM".equals(formId)) {
+            materialBillService.saveOrUpdateMaterialBills(entities);
+            return;
+        }
         service.saveOrUpdateBatch(entities);
     }
 
