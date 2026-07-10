@@ -1,5 +1,5 @@
 <template>
-  <PageWrapper contentFullHeight fixedHeight>
+  <PageWrapper :contentFullHeight="isDesktopViewport" :fixedHeight="isDesktopViewport">
     <div class="sipm-page">
       <section class="sipm-search">
         <div class="sipm-search__main">
@@ -155,11 +155,11 @@
   import pdfWorkerSource from 'pdfjs-dist/build/pdf.worker.mjs?raw';
   import { computed, nextTick, onUnmounted, reactive, ref } from 'vue';
   import { PageWrapper } from '/@/components/Page';
+  import { useWindowSizeFn } from '/@/hooks/event/useWindowSizeFn';
   import { useMessage } from '/@/hooks/web/useMessage';
   import { getSipmDrawingImageBlob, querySipmDrawingList, SipmDrawingListResult, SipmDrawingRecord, SipmPartRecord } from './sipm-drawing.api';
 
-  const pdfWorkerBlobUrl =
-    typeof window === 'undefined' ? '' : URL.createObjectURL(new Blob([pdfWorkerSource], { type: 'text/javascript' }));
+  const pdfWorkerBlobUrl = typeof window === 'undefined' ? '' : URL.createObjectURL(new Blob([pdfWorkerSource], { type: 'text/javascript' }));
   if (pdfWorkerBlobUrl) {
     pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerBlobUrl;
   }
@@ -179,12 +179,14 @@
   const previewCanvasRef = ref<HTMLCanvasElement | null>(null);
   const previewViewportRef = ref<HTMLDivElement | null>(null);
   const previewScale = ref(1);
+  const viewportWidth = ref(typeof window === 'undefined' ? 1440 : window.innerWidth);
   const previewOffset = reactive({ x: 0, y: 0 });
   const previewBaseSize = reactive({ width: 0, height: 0 });
   const previewDragging = ref(false);
   const previewDragStart = reactive({ x: 0, y: 0, offsetX: 0, offsetY: 0 });
 
   const total = computed(() => records.value.length);
+  const isDesktopViewport = computed(() => viewportWidth.value > 1024);
   const previewTitle = computed(() => `图纸预览${selectedRecord.value?.objNo ? ` - ${selectedRecord.value.objNo}` : ''}`);
   const canAdjustPreview = computed(() => !previewLoading.value && !previewError.value && !!previewMode.value);
   const previewStageStyle = computed(() => ({
@@ -218,8 +220,16 @@
 
   const tableScroll = computed(() => ({
     x: columns.reduce((sum, column) => sum + getColumnWidth(column.width), 0),
-    y: 'calc(100vh - 420px)',
+    y: isDesktopViewport.value ? 'calc(100vh - 420px)' : undefined,
   }));
+
+  useWindowSizeFn(
+    () => {
+      viewportWidth.value = window.innerWidth;
+    },
+    120,
+    { immediate: true }
+  );
 
   function getColumnWidth(width?: number | string) {
     if (typeof width === 'number') {
@@ -532,8 +542,7 @@
     overflow: hidden;
     color: #172033;
     background:
-      linear-gradient(90deg, rgba(35, 89, 119, 0.05) 1px, transparent 1px),
-      linear-gradient(0deg, rgba(35, 89, 119, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(35, 89, 119, 0.05) 1px, transparent 1px), linear-gradient(0deg, rgba(35, 89, 119, 0.05) 1px, transparent 1px),
       #f4f7f8;
     background-size: 28px 28px;
   }
@@ -864,11 +873,8 @@
     cursor: grab;
     user-select: none;
     background:
-      linear-gradient(45deg, #eef3f6 25%, transparent 25%),
-      linear-gradient(-45deg, #eef3f6 25%, transparent 25%),
-      linear-gradient(45deg, transparent 75%, #eef3f6 75%),
-      linear-gradient(-45deg, transparent 75%, #eef3f6 75%),
-      #f8fafc;
+      linear-gradient(45deg, #eef3f6 25%, transparent 25%), linear-gradient(-45deg, #eef3f6 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #eef3f6 75%), linear-gradient(-45deg, transparent 75%, #eef3f6 75%), #f8fafc;
     background-position:
       0 0,
       0 8px,
@@ -902,16 +908,121 @@
   }
 
   @media (max-width: 1200px) {
+    .sipm-page {
+      padding: 12px;
+    }
+
+    .sipm-search {
+      gap: 14px;
+    }
+
+    .sipm-search__main {
+      flex: 1;
+    }
+
+    .sipm-search__input {
+      width: min(360px, 42vw);
+    }
+
+    .sipm-search__meta {
+      gap: 12px;
+    }
+
     .sipm-content {
       min-height: 0;
     }
   }
 
+  @media (max-width: 1024px) {
+    .sipm-page {
+      height: auto;
+      min-height: 100%;
+      overflow: visible;
+    }
+
+    .sipm-search {
+      align-items: flex-start;
+      min-height: auto;
+    }
+
+    .sipm-search__main {
+      align-items: stretch;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .sipm-search__input {
+      width: 100%;
+      margin-left: 0;
+    }
+
+    .sipm-search__meta {
+      align-self: stretch;
+      justify-content: flex-end;
+      padding-top: 2px;
+    }
+
+    .sipm-part {
+      padding: 12px 14px 0;
+    }
+
+    .sipm-part__plate {
+      align-items: flex-start;
+    }
+
+    .sipm-part__name {
+      max-width: 50%;
+    }
+
+    .sipm-content {
+      flex: none;
+      min-height: auto;
+      overflow: visible;
+    }
+
+    .sipm-table {
+      flex: none;
+      overflow: visible;
+    }
+
+    .sipm-table :deep(.ant-table-wrapper),
+    .sipm-table :deep(.ant-spin-nested-loading),
+    .sipm-table :deep(.ant-spin-container) {
+      min-width: 0;
+    }
+
+    .sipm-preview-modal__toolbar {
+      align-items: flex-start;
+    }
+
+    .sipm-preview-modal__actions {
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      white-space: normal;
+    }
+
+    .sipm-preview-modal__body {
+      height: max(480px, calc(100vh - 168px));
+      min-height: 480px;
+    }
+  }
+
   @media (max-width: 720px) {
+    .sipm-page {
+      height: auto;
+      min-height: 100%;
+      padding: 8px;
+      overflow: auto;
+      background-size: 22px 22px;
+    }
+
     .sipm-search {
       align-items: flex-start;
       flex-direction: column;
       gap: 10px;
+      padding: 12px;
+      margin-bottom: 8px;
+      border-left-width: 3px;
     }
 
     .sipm-search__main {
@@ -923,6 +1034,11 @@
 
     .sipm-search__title {
       margin-right: 0;
+      font-size: 17px;
+    }
+
+    .sipm-search__subtitle {
+      line-height: 1.35;
     }
 
     .sipm-search__input {
@@ -932,18 +1048,121 @@
 
     .sipm-search__meta {
       width: 100%;
+      flex-wrap: wrap;
+      gap: 8px 14px;
       justify-content: space-between;
+    }
+
+    .sipm-search__count {
+      margin-right: -8px;
+      font-size: 24px;
+    }
+
+    .sipm-search__current {
+      width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .sipm-part {
+      padding: 12px 12px 0;
+      margin-bottom: 8px;
+    }
+
+    .sipm-part::before {
+      width: 86px;
+      opacity: 0.7;
     }
 
     .sipm-part__plate {
       align-items: flex-start;
       flex-direction: column;
       gap: 6px;
+      padding-bottom: 10px;
+      margin-bottom: 10px;
+    }
+
+    .sipm-part__code {
+      max-width: 100%;
+      overflow-wrap: anywhere;
+      font-size: 19px;
     }
 
     .sipm-part__name {
       max-width: 100%;
       text-align: left;
+      white-space: normal;
+    }
+
+    .sipm-part__form {
+      :deep(.ant-form-item) {
+        margin-bottom: 10px;
+      }
+    }
+
+    .sipm-readonly-field {
+      min-height: 30px;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+
+    .sipm-content__header {
+      padding: 10px 12px;
+    }
+
+    .sipm-content__subtitle {
+      line-height: 1.35;
+    }
+
+    .sipm-table :deep(.ant-table-pagination.ant-pagination) {
+      margin: 10px 8px;
+      row-gap: 8px;
+    }
+
+    :deep(.sipm-preview-modal .ant-modal) {
+      top: 8px;
+      max-width: calc(100vw - 16px);
+      margin: 0 auto;
+    }
+
+    :deep(.sipm-preview-modal .ant-modal-content) {
+      height: calc(100dvh - 16px);
+    }
+
+    :deep(.sipm-preview-modal .ant-modal-body) {
+      padding: 8px 10px 10px;
+    }
+
+    .sipm-preview-modal__toolbar {
+      align-items: stretch;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .sipm-preview-modal__name {
+      width: 100%;
+    }
+
+    .sipm-preview-modal__actions {
+      justify-content: flex-start;
+      gap: 6px;
+
+      :deep(.ant-btn) {
+        min-width: 44px;
+        padding-inline: 8px;
+      }
+    }
+
+    .sipm-preview-modal__body {
+      height: calc(100dvh - 190px);
+      min-height: 320px;
+      touch-action: none;
+    }
+
+    .sipm-preview-modal__stage {
+      max-width: calc(100vw - 40px);
+      max-height: calc(100dvh - 220px);
     }
   }
 </style>
