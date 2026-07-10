@@ -1,12 +1,17 @@
 package org.jeecg.modules.erp.entity;
 
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
+@TableName("erp_material_bill")
 public class ErpMaterialBillEntity extends ErpCommonEntity {
 
 
@@ -14,6 +19,7 @@ public class ErpMaterialBillEntity extends ErpCommonEntity {
      * 实体主键
      */
     @JsonProperty("FID")
+    @TableId
     private Long id;
 
     /**
@@ -121,8 +127,8 @@ public class ErpMaterialBillEntity extends ErpCommonEntity {
     /**
      * 父项物料编码（必填项）
      */
-    @JsonProperty("FMATERIALID")
-    private Long materialId;
+    @JsonProperty("FMATERIALID.fnumber")
+    private String materialId;
 
     /**
      * 物料名称
@@ -194,7 +200,7 @@ public class ErpMaterialBillEntity extends ErpCommonEntity {
      * BOM分组
      */
     @JsonProperty("FGroup")
-    private String group;
+    private String bomGroup;
 
     /**
      * PLMBOM内码
@@ -211,8 +217,8 @@ public class ErpMaterialBillEntity extends ErpCommonEntity {
     /**
      * 校验
      */
-    @JsonProperty("FIsValidate")
-    private Boolean isValidate;
+//    @JsonProperty("FIsValidate")
+//    private Boolean isValidate;
 
     /**
      * 辅助属性
@@ -223,44 +229,44 @@ public class ErpMaterialBillEntity extends ErpCommonEntity {
     /**
      * 备注
      */
-    @JsonProperty("FF100005")
-    private String remark;
+//    @JsonProperty("FF100005")
+//    private String remark;
 
     /**
      * 技转前规格
      */
-    @JsonProperty("FF100006")
-    private String preTransferSpec;
+//    @JsonProperty("FF100006")
+//    private String preTransferSpec;
 
     /**
      * 技转前名称
      */
-    @JsonProperty("FF100007")
-    private String preTransferName;
+//    @JsonProperty("FF100007")
+//    private String preTransferName;
 
     /**
      * 流水号
      */
-    @JsonProperty("FF100004")
-    private String serialNumber;
+//    @JsonProperty("FF100004")
+//    private String serialNumber;
 
     /**
      * 物料颜色
      */
-    @JsonProperty("FF100001")
-    private String materialColor;
+//    @JsonProperty("FF100001")
+//    private String materialColor;
 
     /**
      * 物料组件
      */
-    @JsonProperty("FF100002")
-    private String materialComponent;
+//    @JsonProperty("FF100002")
+//    private String materialComponent;
 
     /**
      * 销售订单号辅助属性
      */
-    @JsonProperty("FF100008")
-    private String saleOrderAuxProp;
+//    @JsonProperty("FF100008")
+//    private String saleOrderAuxProp;
 
     /**
      * 产品模型
@@ -271,8 +277,8 @@ public class ErpMaterialBillEntity extends ErpCommonEntity {
     /**
      * 扩展版本变量
      */
-    @JsonProperty("FExtVar")
-    private String extVar;
+//    @JsonProperty("FExtVar")
+//    private String extVar;
 
     /**
      * 禁用原因
@@ -297,4 +303,7 @@ public class ErpMaterialBillEntity extends ErpCommonEntity {
      */
     @JsonProperty("F_UKPT_FPLMTH")
     private String parentPlmDrawingNo;
+
+    @TableField(exist = false)
+    private List<ErpMaterialBillLineEntity> entries;
 }

@@ -13,6 +13,7 @@ import org.jeecg.modules.erp.dto.QueryDto;
 import org.jeecg.modules.erp.entity.ErpProductionOrderEntity;
 import org.jeecg.modules.erp.exception.ChunkSyncFailureException;
 import org.jeecg.modules.erp.service.IErpDepartmentService;
+import org.jeecg.modules.erp.service.IErpMaterialBillService;
 import org.jeecg.modules.erp.service.IErpMaterialService;
 import org.jeecg.modules.erp.service.IErpOrgService;
 import org.jeecg.modules.erp.service.IErpProductionOrderService;
@@ -49,6 +50,7 @@ public class ErpSyncXxlJobHandler {
             .withResolverStyle(ResolverStyle.STRICT);
 
     private final IErpMaterialService materialService;
+    private final IErpMaterialBillService materialBillService;
     private final IErpSupplierService supplierService;
     private final IErpPurchaseAdjustmentService purchaseAdjustmentService;
     private final IErpOrgService orgService;
@@ -61,6 +63,7 @@ public class ErpSyncXxlJobHandler {
 
     @Autowired
     public ErpSyncXxlJobHandler(IErpMaterialService materialService,
+                                IErpMaterialBillService materialBillService,
                                 IErpSupplierService supplierService,
                                 IErpPurchaseAdjustmentService purchaseAdjustmentService,
                                 IErpOrgService orgService,
@@ -69,11 +72,12 @@ public class ErpSyncXxlJobHandler {
                                 IErpProductionOrderService productionOrderService,
                                 IErpSalesDeliveryOrderService salesDeliveryOrderService,
                                 ISysInterfaceLogService interfaceLogService) {
-        this(materialService, supplierService, purchaseAdjustmentService, orgService, departmentService,
+        this(materialService, materialBillService, supplierService, purchaseAdjustmentService, orgService, departmentService,
                 salesOrderService, productionOrderService, salesDeliveryOrderService, interfaceLogService, null);
     }
 
     ErpSyncXxlJobHandler(IErpMaterialService materialService,
+                         IErpMaterialBillService materialBillService,
                          IErpSupplierService supplierService,
                          IErpPurchaseAdjustmentService purchaseAdjustmentService,
                          IErpOrgService orgService,
@@ -84,6 +88,7 @@ public class ErpSyncXxlJobHandler {
                          ISysInterfaceLogService interfaceLogService,
                          LocalDate fixedCurrentDate) {
         this.materialService = materialService;
+        this.materialBillService = materialBillService;
         this.supplierService = supplierService;
         this.purchaseAdjustmentService = purchaseAdjustmentService;
         this.orgService = orgService;
@@ -102,6 +107,15 @@ public class ErpSyncXxlJobHandler {
             param = currentDate().format(DATE_FORMATTER);
         }
         executeMonthlySync("物料", param, materialService::queryByDate);
+    }
+
+    @XxlJob("erpMaterialBillSyncJob")
+    public void erpMaterialBillSyncJob() {
+        String param = XxlJobHelper.getJobParam();
+        if (StrUtil.isBlank(param)) {
+            param = currentDate().format(DATE_FORMATTER);
+        }
+        executeMonthlySync("物料清单", param, materialBillService::queryByDate);
     }
 
     @XxlJob("erpSupplierSyncJob")
