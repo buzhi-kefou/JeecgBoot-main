@@ -23,6 +23,7 @@
             bom_category,
             bom_use,
             material_id,
+            material_code,
             item_name,
             item_model,
             item_property,
@@ -66,6 +67,7 @@
                 #{item.bomCategory},
                 #{item.bomUse},
                 #{item.materialId},
+                #{item.materialCode},
                 #{item.itemName},
                 #{item.itemModel},
                 #{item.itemProperty},
@@ -107,6 +109,7 @@
             bom_category = VALUES(bom_category),
             bom_use = VALUES(bom_use),
             material_id = VALUES(material_id),
+            material_code = values(material_code),
             item_name = VALUES(item_name),
             item_model = VALUES(item_model),
             item_property = VALUES(item_property),
@@ -128,4 +131,69 @@
             production_workshop = VALUES(production_workshop),
             parent_plm_drawing_no = VALUES(parent_plm_drawing_no)
     </insert>
+
+    <select id="selectAllChildLines" resultType="org.jeecg.modules.erp.dto.MaterialBillChildLineDto">
+        WITH RECURSIVE latest_bom AS (
+            SELECT id, use_org_id, material_code, item_property
+            FROM (
+                SELECT
+                    h.id,
+                    h.use_org_id,
+                    h.material_code,
+                    h.item_property,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY h.use_org_id, h.material_code
+                        ORDER BY h.modify_date DESC, h.id DESC
+                    ) AS row_num
+                FROM erp_material_bill h
+            ) ranked_bom
+            WHERE row_num = 1
+        ),
+        bom_tree AS (
+            SELECT
+                h.use_org_id,
+                1 AS level_no,
+                h.id AS parent_bill_id,
+                h.material_code AS parent_material_code,
+                h.item_property,
+                l.id AS line_id,
+                l.material_code_child,
+                l.bom_id AS child_bom_id,
+                CAST(CONCAT(',', h.id, ',') AS CHAR(4000)) AS bill_path
+            FROM latest_bom h
+            INNER JOIN erp_material_bill_line l ON l.bill_id = h.id
+            WHERE h.material_code = #{materialCode}
+              AND h.use_org_id = #{useOrgId}
+
+            UNION ALL
+
+            SELECT
+                t.use_org_id,
+                t.level_no + 1,
+                h.id AS parent_bill_id,
+                h.material_code AS parent_material_code,
+                h.item_property,
+                l.id AS line_id,
+                l.material_code_child,
+                l.bom_id AS child_bom_id,
+                CONCAT(t.bill_path, h.id, ',') AS bill_path
+            FROM bom_tree t
+            INNER JOIN latest_bom h
+                ON h.use_org_id = t.use_org_id
+                AND t.child_bom_id = '0'
+                AND h.material_code = t.material_code_child
+            INNER JOIN erp_material_bill_line l ON l.bill_id = h.id
+            WHERE t.level_no &lt; 50
+              AND LOCATE(CONCAT(',', h.id, ','), t.bill_path) = 0
+        )
+        SELECT
+            l.*,
+            t.level_no AS levelNo,
+            t.parent_bill_id AS parentBillId,
+            t.parent_material_code AS parentMaterialCode,
+            t.item_property AS itemProperty
+        FROM bom_tree t
+        INNER JOIN erp_material_bill_line l ON l.id = t.line_id
+        ORDER BY t.level_no, t.parent_bill_id, t.line_id
+    </select>
 </mapper>

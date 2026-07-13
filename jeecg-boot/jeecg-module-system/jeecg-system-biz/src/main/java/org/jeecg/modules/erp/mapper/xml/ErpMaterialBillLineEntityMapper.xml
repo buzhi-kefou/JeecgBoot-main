@@ -16,7 +16,7 @@
             cfg_feature_entry_id, plm_bom_entry_id, bom_entry_src, is_skip, tree_entry_id_bak,
             change_type, change_time, ecn_bill_no, ecn_chg_type, ecn_chg_date, supply_mode,
             ecn_row_type, plm_bom_entry_row_id, is_mrp_run, substitution_id, st_entry_id,
-            net_demand_rate, ecn_entry_id, material_name_child, material_model_child, material_property_child
+            net_demand_rate, ecn_entry_id, material_code_child, material_name_child, material_model_child, material_property_child
         )
         VALUES
         <foreach collection="list" item="item" separator=",">
@@ -39,7 +39,7 @@
                 #{item.treeEntryIdBak}, #{item.changeType}, #{item.changeTime}, #{item.ecnBillNo},
                 #{item.ecnChgType}, #{item.ecnChgDate}, #{item.supplyMode}, #{item.ecnRowType},
                 #{item.plmBomEntryRowId}, #{item.isMrpRun}, #{item.substitutionId}, #{item.stEntryId},
-                #{item.netDemandRate}, #{item.ecnEntryId}, #{item.materialNameChild}, #{item.materialModelChilde},
+                #{item.netDemandRate}, #{item.ecnEntryId}, #{item.materialCodeChild}, #{item.materialNameChild}, #{item.materialModelChild},
                 #{item.materialPropertyChild}
             )
         </foreach>
@@ -118,8 +118,9 @@
             st_entry_id = VALUES(st_entry_id),
             net_demand_rate = VALUES(net_demand_rate),
             ecn_entry_id = VALUES(ecn_entry_id),
-            material_name = values(mateiral_name_child),
-            material_model_child = values(mateiral_model_child),
-            material_property_child = values(mateiral_property_child),
+            material_code_child = values(material_code_child),
+            material_name_child = values(material_name_child),
+            material_model_child = values(material_model_child),
+            material_property_child = values(material_property_child)
     </insert>
 </mapper>

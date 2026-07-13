@@ -81,8 +81,11 @@ public class ErpMaterialBillLineEntity extends ErpCommonEntity {
     private Boolean isKeyComponent;
 
     /** 子项物料编码 */
-    @JsonProperty("FMATERIALIDCHILD.fnumber")
+    @JsonProperty("FMATERIALIDCHILD")
     private String materialIdChild;
+
+    @JsonProperty("FMATERIALIDCHILD.fnumber")
+    private String materialCodeChild;
 
     /**
      * 子项物料名称

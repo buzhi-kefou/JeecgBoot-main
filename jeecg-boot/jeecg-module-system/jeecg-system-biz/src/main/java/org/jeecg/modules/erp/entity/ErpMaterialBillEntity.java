@@ -127,8 +127,11 @@ public class ErpMaterialBillEntity extends ErpCommonEntity {
     /**
      * 父项物料编码（必填项）
      */
-    @JsonProperty("FMATERIALID.fnumber")
+    @JsonProperty("FMATERIALID")
     private String materialId;
+
+    @JsonProperty("FMATERIALID.fnumber")
+    private String materialCode;
 
     /**
      * 物料名称
