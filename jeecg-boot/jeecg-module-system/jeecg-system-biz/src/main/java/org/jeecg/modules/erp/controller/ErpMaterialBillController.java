@@ -19,7 +19,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * ERP 物料清单层级查询。
@@ -63,6 +65,7 @@ public class ErpMaterialBillController {
         target.setNumerator(source.getNumerator());
         target.setDenominator(source.getDenominator());
         target.setBomId(source.getBomId());
+        target.setChildBomVersion(source.getChildBomVersion());
         target.setChildren(source.getChildren() == null ? List.of()
                 : source.getChildren().stream().map(ErpMaterialBillController::toChildLineVo).toList());
         return target;
@@ -73,7 +76,7 @@ public class ErpMaterialBillController {
         for (MaterialBillChildLineDto root : roots) {
             collectPurchaseUsage(root, BigDecimal.ONE, BigDecimal.ONE, purchaseUsages);
         }
-        return purchaseUsages;
+        return mergePurchaseUsages(purchaseUsages);
     }
 
     private static void collectPurchaseUsage(MaterialBillChildLineDto line, BigDecimal parentNumerator,
@@ -87,12 +90,11 @@ public class ErpMaterialBillController {
             }
             return;
         }
-        if (!"2".equals(line.getItemProperty())) {
+        if (!"1".equals(line.getItemProperty()) && !"3".equals(line.getItemProperty())) {
             return;
         }
         MaterialBillPurchaseUsageVo usage = new MaterialBillPurchaseUsageVo();
         usage.setId(line.getId());
-        usage.setLevelNo(line.getLevelNo());
         usage.setItemProperty(convertMaterialAttribute(line.getItemProperty()));
         usage.setMaterialCodeChild(line.getMaterialCodeChild());
         usage.setMaterialNameChild(line.getMaterialNameChild());
@@ -102,8 +104,32 @@ public class ErpMaterialBillController {
         purchaseUsages.add(usage);
     }
 
+    private static List<MaterialBillPurchaseUsageVo> mergePurchaseUsages(
+            List<MaterialBillPurchaseUsageVo> purchaseUsages) {
+        Map<String, MaterialBillPurchaseUsageVo> usagesByMaterialCode = new LinkedHashMap<>();
+        for (MaterialBillPurchaseUsageVo usage : purchaseUsages) {
+            MaterialBillPurchaseUsageVo mergedUsage = usagesByMaterialCode.get(usage.getMaterialCodeChild());
+            if (mergedUsage == null) {
+                usagesByMaterialCode.put(usage.getMaterialCodeChild(), usage);
+                continue;
+            }
+            BigDecimal mergedNumerator = valueOrZero(mergedUsage.getNumerator());
+            BigDecimal mergedDenominator = valueOrOne(mergedUsage.getDenominator());
+            BigDecimal numerator = valueOrZero(usage.getNumerator());
+            BigDecimal denominator = valueOrOne(usage.getDenominator());
+            mergedUsage.setNumerator(mergedNumerator.multiply(denominator)
+                    .add(numerator.multiply(mergedDenominator)));
+            mergedUsage.setDenominator(mergedDenominator.multiply(denominator));
+        }
+        return new ArrayList<>(usagesByMaterialCode.values());
+    }
+
     private static BigDecimal valueOrOne(BigDecimal value) {
         return value == null ? BigDecimal.ONE : value;
+    }
+
+    private static BigDecimal valueOrZero(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
     }
 
     private static String convertMaterialAttribute(String itemProperty) {

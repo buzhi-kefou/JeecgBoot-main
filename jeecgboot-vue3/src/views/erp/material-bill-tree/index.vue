@@ -65,7 +65,6 @@
   import { useListPage } from '/@/hooks/system/useListPage';
   import { getMaterialBillChildLines } from './material-bill-tree.api';
   import {
-    loadMaterialOptions,
     loadOrgOptions,
     purchaseUsageColumns,
     searchFormSchema,
@@ -75,6 +74,7 @@
   interface MaterialBillTreeRow {
     bomId?: string | number;
     billId?: string | number;
+    childBomVersion?: string;
     children?: MaterialBillTreeRow[];
     itemProperty?: string;
     levelNo?: string | number;
@@ -88,7 +88,6 @@
     denominator: number;
     id: string | number;
     itemProperty: string;
-    levelNo: number;
     materialCodeChild: string;
     materialModelChild: string;
     materialNameChild: string;
@@ -169,6 +168,24 @@
     return `material-bill-level-${levelNo}`;
   }
 
+  function formatLevelNo(value: unknown) {
+    const levelNo = Number(value);
+    if (!Number.isFinite(levelNo) || levelNo <= 1) {
+      return value ?? '';
+    }
+    return `${'\u3000'.repeat(Math.floor(levelNo) - 1)}${value}`;
+  }
+
+  const materialBillTreeColumns = tableColumns.map((column) =>
+    column.dataIndex === 'levelNo'
+      ? {
+          ...column,
+          align: 'left',
+          customRender: ({ text }) => formatLevelNo(text),
+        }
+      : column
+  );
+
   const { tableContext } = useListPage({
     designScope: 'erp-material-bill-tree',
     tableProps: {
@@ -179,7 +196,7 @@
       defaultExpandAllRows: false,
       expandColumnWidth: 46,
       rowClassName: getLevelRowClass,
-      columns: tableColumns,
+      columns: materialBillTreeColumns,
       bordered: true,
       scroll: { x: 1300 },
       pagination: false,

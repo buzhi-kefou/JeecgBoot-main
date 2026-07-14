@@ -25,6 +25,9 @@ public class MaterialBillChildLineDto extends ErpMaterialBillLineEntity {
     /** 当前明细所属 BOM 头表的物料属性。 */
     private String itemProperty;
 
+    /** 子项物料最新已审核 BOM 的版本号。 */
+    private String childBomVersion;
+
     /** 下级 BOM 明细。 */
     private List<MaterialBillChildLineDto> children;
 }

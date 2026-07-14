@@ -35,5 +35,7 @@ public class MaterialBillChildLineVo {
 
     private Long bomId;
 
+    private String childBomVersion;
+
     private List<MaterialBillChildLineVo> children;
 }

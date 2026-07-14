@@ -12,8 +12,6 @@ public class MaterialBillPurchaseUsageVo {
 
     private Long id;
 
-    private Integer levelNo;
-
     private String itemProperty;
 
     private String materialCodeChild;

@@ -34,17 +34,17 @@ export const tableColumns: BasicColumn[] = [
   textColumn('', '__expand__', 46, 'center'),
   textColumn('层级', 'levelNo', 80, 'center'),
   textColumn('父项物料编码', 'parentMaterialCode', 160),
-  textColumn('物料属性', 'itemProperty', 110, 'center'),
   textColumn('子项物料编码', 'materialCodeChild', 160),
+  textColumn('子项物料属性', 'itemProperty', 110, 'center'),
+  textColumn('子项 BOM 版本', 'childBomVersion', 180, 'center'),
   textColumn('子项物料名称', 'materialNameChild', 180),
   textColumn('规格型号', 'materialModelChild', 180),
   textColumn('用量分子', 'numerator', 110, 'right'),
   textColumn('用量分母', 'denominator', 110, 'right'),
-  textColumn('子项 BOM', 'bomId', 130),
+  // textColumn('子项 BOM', 'bomId', 130),
 ];
 
 export const purchaseUsageColumns: BasicColumn[] = [
-  textColumn('层级', 'levelNo', 80, 'center'),
   textColumn('物料编码', 'materialCodeChild', 160),
   textColumn('物料名称', 'materialNameChild', 180),
   textColumn('规格型号', 'materialModelChild', 180),

@@ -134,18 +134,21 @@
 
     <select id="selectAllChildLines" resultType="org.jeecg.modules.erp.dto.MaterialBillChildLineDto">
         WITH RECURSIVE latest_bom AS (
-            SELECT id, use_org_id, material_code, item_property
+            SELECT id, use_org_id, material_code, item_property, number
             FROM (
                 SELECT
                     h.id,
                     h.use_org_id,
                     h.material_code,
                     h.item_property,
+                    h.number,
                     ROW_NUMBER() OVER (
                         PARTITION BY h.use_org_id, h.material_code
-                        ORDER BY h.modify_date DESC, h.id DESC
+                        ORDER BY h.approve_date DESC, h.id DESC
                     ) AS row_num
                 FROM erp_material_bill h
+                WHERE h.document_status = 'C'
+                  AND h.forbid_status = 'A'
             ) ranked_bom
             WHERE row_num = 1
         ),
@@ -191,9 +194,13 @@
             t.level_no AS levelNo,
             t.parent_bill_id AS parentBillId,
             t.parent_material_code AS parentMaterialCode,
-            t.item_property AS itemProperty
+            l.material_property_child AS itemProperty,
+            COALESCE(child_bom.number, '') AS childBomVersion
         FROM bom_tree t
         INNER JOIN erp_material_bill_line l ON l.id = t.line_id
+        LEFT JOIN latest_bom child_bom
+            ON child_bom.use_org_id = t.use_org_id
+            AND child_bom.material_code = l.material_code_child
         ORDER BY t.level_no, t.parent_bill_id, t.line_id
     </select>
 </mapper>
