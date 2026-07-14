@@ -51,6 +51,7 @@ export const purchaseUsageColumns: BasicColumn[] = [
   textColumn('物料属性', 'itemProperty', 110, 'center'),
   textColumn('累计分子', 'numerator', 120, 'right'),
   textColumn('累计分母', 'denominator', 120, 'right'),
+  textColumn('累计用量', 'usageAmount', 120, 'right'),
 ];
 
 export const materialOptions = ref<{ label: string; value: string }[]>([]);

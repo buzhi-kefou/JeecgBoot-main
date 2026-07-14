@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -121,7 +122,21 @@ public class ErpMaterialBillController {
                     .add(numerator.multiply(mergedDenominator)));
             mergedUsage.setDenominator(mergedDenominator.multiply(denominator));
         }
-        return new ArrayList<>(usagesByMaterialCode.values());
+        List<MaterialBillPurchaseUsageVo> mergedUsages = new ArrayList<>(usagesByMaterialCode.values());
+        for (MaterialBillPurchaseUsageVo mergedUsage : mergedUsages) {
+            mergedUsage.setUsageAmount(calculateUsageAmount(mergedUsage));
+        }
+        return mergedUsages;
+    }
+
+    private static BigDecimal calculateUsageAmount(MaterialBillPurchaseUsageVo usage) {
+        BigDecimal denominator = valueOrOne(usage.getDenominator());
+        if (BigDecimal.ZERO.compareTo(denominator) == 0) {
+            return null;
+        }
+        return valueOrZero(usage.getNumerator())
+                .divide(denominator, 6, RoundingMode.HALF_UP)
+                .stripTrailingZeros();
     }
 
     private static BigDecimal valueOrOne(BigDecimal value) {

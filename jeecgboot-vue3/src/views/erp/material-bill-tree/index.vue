@@ -92,6 +92,7 @@
     materialModelChild: string;
     materialNameChild: string;
     numerator: number;
+    usageAmount: number;
   }
 
   interface MaterialBillChildLineResult {

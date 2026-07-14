@@ -23,4 +23,9 @@ public class MaterialBillPurchaseUsageVo {
     private BigDecimal numerator;
 
     private BigDecimal denominator;
+
+    /**
+     * 累计用量，等于累计分子除以累计分母。
+     */
+    private BigDecimal usageAmount;
 }

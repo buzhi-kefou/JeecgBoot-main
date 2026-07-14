@@ -51,6 +51,7 @@ class ErpMaterialBillControllerTest {
         assertEquals("M001", result.get(0).getMaterialCodeChild());
         assertEquals(new BigDecimal("29"), result.get(0).getNumerator());
         assertEquals(new BigDecimal("21"), result.get(0).getDenominator());
+        assertEquals(new BigDecimal("1.380952"), result.get(0).getUsageAmount());
     }
 
     private static MaterialBillChildLineDto purchaseLine(String materialCode, String itemProperty,
