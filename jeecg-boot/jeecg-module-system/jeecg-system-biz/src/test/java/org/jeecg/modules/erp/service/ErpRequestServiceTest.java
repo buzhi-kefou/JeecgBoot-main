@@ -5,6 +5,7 @@ import org.jeecg.modules.erp.dto.QueryDetailDto;
 import org.jeecg.modules.erp.dto.QueryDto;
 import org.jeecg.modules.erp.entity.ErpMaterialBillEntity;
 import org.jeecg.modules.erp.entity.ErpOrgEntity;
+import org.jeecg.modules.erp.entity.ErpSalesOrderEntity;
 import org.jeecg.modules.system.dto.InterfaceLogContext;
 import org.jeecg.modules.system.entity.SysInterfaceLog;
 import org.jeecg.modules.system.service.ISysInterfaceLogService;
@@ -15,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.RestTemplate;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -138,11 +140,35 @@ class ErpRequestServiceTest {
     @Test
     void parseRowsReportsNestedFieldWhenNumericConversionFails() {
         NumberFormatException thrown = assertThrows(NumberFormatException.class, () ->
-                ErpRequestService.parseRows("[[1,\"一分厂\"]]", "FID,F_UKPT_YLZZ", ErpMaterialBillEntity.class));
+                ErpRequestService.parseRows("[[1,\"一分厂\"]]", "FID,FTreeEntity_FENTRYID", ErpMaterialBillEntity.class));
 
-        assertEquals(true, thrown.getMessage().contains("字段名: F_UKPT_YLZZ"));
-        assertEquals(true, thrown.getMessage().contains("属性: ukptYlzz"));
+        assertEquals(true, thrown.getMessage().contains("字段名: FTreeEntity_FENTRYID"));
+        assertEquals(true, thrown.getMessage().contains("属性: id"));
         assertEquals(true, thrown.getMessage().contains("值: '一分厂'"));
+    }
+
+    @Test
+    void parseRowsAssignsSingleNestedFinanceEntity() {
+        String fields = "FID,FSaleOrderFinance_fEntryId,fExchangeRate,fIsIncludedTax";
+
+        List<ErpSalesOrderEntity> rows = ErpRequestService.parseRows(
+                "[[\"SO-1\",9001,7.125,true]]", fields, ErpSalesOrderEntity.class);
+
+        assertEquals(1, rows.size());
+        assertEquals("SO-1", rows.get(0).getFid());
+        assertEquals(9001L, rows.get(0).getFinanceEntity().getEntryId());
+        assertEquals(new BigDecimal("7.125"), rows.get(0).getFinanceEntity().getExchangeRate());
+        assertEquals(true, rows.get(0).getFinanceEntity().getIsIncludedTax());
+    }
+
+    @Test
+    void parseRowsLeavesSingleNestedFinanceEntityNullWhenAllFinanceValuesAreNull() {
+        String fields = "FID,FSaleOrderFinance_fEntryId,fExchangeRate";
+
+        List<ErpSalesOrderEntity> rows = ErpRequestService.parseRows(
+                "[[\"SO-1\",null,null]]", fields, ErpSalesOrderEntity.class);
+
+        assertEquals(null, rows.get(0).getFinanceEntity());
     }
 
     private static ErpRequestService service(RestTemplate restTemplate,

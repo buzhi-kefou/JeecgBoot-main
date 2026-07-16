@@ -296,7 +296,9 @@ public class ErpRequestService {
             for (Field field : current.getDeclaredFields()) {
                 Class<?> nestedEntityType = resolveNestedEntityType(field);
                 if (nestedEntityType != null) {
-                    mappings.add(new NestedFieldMapping(field, nestedEntityType, getJsonPropertyFieldMap(nestedEntityType)));
+                    mappings.add(new NestedFieldMapping(field, nestedEntityType,
+                            getJsonPropertyFieldMap(nestedEntityType),
+                            Collection.class.isAssignableFrom(field.getType())));
                 }
             }
             current = current.getSuperclass();
@@ -306,6 +308,9 @@ public class ErpRequestService {
 
     private static Class<?> resolveNestedEntityType(Field field) {
         Class<?> fieldType = field.getType();
+        if (ErpCommonEntity.class.isAssignableFrom(fieldType)) {
+            return fieldType;
+        }
         if (!Collection.class.isAssignableFrom(fieldType)) {
             return null;
         }
@@ -328,19 +333,24 @@ public class ErpRequestService {
     private static void setNestedObjects(Object entity, Map<NestedFieldMapping, JSONObject> nestedObjects) {
         for (Map.Entry<NestedFieldMapping, JSONObject> entry : nestedObjects.entrySet()) {
             JSONObject nestedObject = entry.getValue();
-            if (nestedObject.isEmpty()) {
+            NestedFieldMapping mapping = entry.getKey();
+            if (nestedObject.isEmpty() || (!mapping.collection() && !hasNestedValue(nestedObject))) {
                 continue;
             }
-            NestedFieldMapping mapping = entry.getKey();
             JSONObject convertedNestedObject = convertNestedObject(nestedObject, mapping);
             Object nestedEntity = convertedNestedObject.toJavaObject(mapping.entityType());
             try {
-                mapping.collectionField().setAccessible(true);
-                mapping.collectionField().set(entity, List.of(nestedEntity));
+                mapping.nestedField().setAccessible(true);
+                mapping.nestedField().set(entity, mapping.collection() ? List.of(nestedEntity) : nestedEntity);
             } catch (IllegalAccessException e) {
-                throw new IllegalStateException("ERP嵌套字段赋值失败：" + mapping.collectionField().getName(), e);
+                throw new IllegalStateException("ERP嵌套字段赋值失败：" + mapping.nestedField().getName(), e);
             }
         }
+    }
+
+    private static boolean hasNestedValue(JSONObject nestedObject) {
+        return nestedObject.values().stream().anyMatch(value ->
+                value != null && (!(value instanceof String stringValue) || StrUtil.isNotBlank(stringValue)));
     }
 
     private static JSONObject convertNestedObject(JSONObject nestedObject, NestedFieldMapping mapping) {
@@ -438,6 +448,7 @@ public class ErpRequestService {
         return exception;
     }
 
-    private record NestedFieldMapping(Field collectionField, Class<?> entityType, Map<String, Field> fieldMap) {
+    private record NestedFieldMapping(Field nestedField, Class<?> entityType,
+                                      Map<String, Field> fieldMap, boolean collection) {
     }
 }
