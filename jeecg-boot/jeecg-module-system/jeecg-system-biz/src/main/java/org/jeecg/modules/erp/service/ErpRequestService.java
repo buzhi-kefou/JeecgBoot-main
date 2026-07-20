@@ -26,6 +26,9 @@ import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -376,6 +379,17 @@ public class ErpRequestService {
         if (value instanceof String stringValue && targetField != null
                 && !String.class.equals(targetField.getType()) && StrUtil.isBlank(stringValue)) {
             return null;
+        }
+        if (value instanceof String stringValue && targetField != null
+                && LocalDateTime.class.equals(targetField.getType())) {
+            try {
+                return LocalDateTime.parse(stringValue, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+            } catch (DateTimeParseException e) {
+                JsonProperty jsonProperty = targetField.getAnnotation(JsonProperty.class);
+                String erpFieldName = jsonProperty == null ? targetField.getName() : jsonProperty.value();
+                throw new IllegalArgumentException("ERP日期时间格式错误，字段名: " + erpFieldName
+                        + "，属性: " + targetField.getName() + "，值: '" + stringValue + "'", e);
+            }
         }
         if (value instanceof String stringValue && targetField != null && isNumberType(targetField.getType())) {
             try {

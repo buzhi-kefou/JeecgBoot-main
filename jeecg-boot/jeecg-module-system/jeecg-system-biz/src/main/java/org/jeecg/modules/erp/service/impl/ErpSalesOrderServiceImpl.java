@@ -8,7 +8,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.jeecg.modules.erp.dto.QueryDetailDto;
 import org.jeecg.modules.erp.dto.QueryDto;
 import org.jeecg.modules.erp.entity.ErpSalesOrderEntity;
+import org.jeecg.modules.erp.entity.ErpSalesOrderFinanceEntity;
 import org.jeecg.modules.erp.mapper.ErpSalesOrderEntityMapper;
+import org.jeecg.modules.erp.mapper.ErpSalesOrderFinanceEntityMapper;
 import org.jeecg.modules.erp.service.ErpRequestService;
 import org.jeecg.modules.erp.service.IErpSalesOrderService;
 import org.springframework.stereotype.Service;
@@ -18,23 +20,25 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
-import java.util.ArrayList;
-import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.Map;
 
 @Slf4j
 @Service
 public class ErpSalesOrderServiceImpl extends ServiceImpl<ErpSalesOrderEntityMapper, ErpSalesOrderEntity>
         implements IErpSalesOrderService {
 
+    private static final int UPSERT_BATCH_SIZE = 200;
+
     @Resource
     private ErpRequestService erpRequestService;
 
     @Resource
     private TransactionTemplate transactionTemplate;
+
+    @Resource
+    private ErpSalesOrderFinanceEntityMapper financeMapper;
 
     @Override
     public List<ErpSalesOrderEntity> queryByDate(String beginDateStr, String endDateStr) {
@@ -83,32 +87,39 @@ public class ErpSalesOrderServiceImpl extends ServiceImpl<ErpSalesOrderEntityMap
     }
 
     private void saveOrUpdateSalesOrders(List<ErpSalesOrderEntity> request) {
-        List<ErpSalesOrderEntity> insertList = new ArrayList<>();
-        List<ErpSalesOrderEntity> updateList = new ArrayList<>();
-        if (CollUtil.isNotEmpty(request)) {
-            Set<String> ids = request.stream()
-                    .map(ErpSalesOrderEntity::getFid)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toSet());
-            Set<String> existIds = CollUtil.isEmpty(ids) ? Collections.emptySet() :
-                    baseMapper.selectByIds(ids).stream()
-                            .map(ErpSalesOrderEntity::getFid)
-                            .filter(Objects::nonNull)
-                            .collect(Collectors.toSet());
-            for (ErpSalesOrderEntity entity : request) {
-                if (existIds.contains(entity.getFid())) {
-                    updateList.add(entity);
-                } else {
-                    insertList.add(entity);
-                }
-            }
+        if (CollUtil.isEmpty(request)) {
+            return;
+        }
+        for (int fromIndex = 0; fromIndex < request.size(); fromIndex += UPSERT_BATCH_SIZE) {
+            int toIndex = Math.min(fromIndex + UPSERT_BATCH_SIZE, request.size());
+            baseMapper.upsertBatch(request.subList(fromIndex, toIndex));
+        }
+        saveOrUpdateFinances(request);
+    }
+
+    private void saveOrUpdateFinances(List<ErpSalesOrderEntity> request) {
+        if (CollUtil.isEmpty(request)) {
+            return;
         }
 
-        if (CollUtil.isNotEmpty(insertList)) {
-            this.saveBatch(insertList);
+        Map<Long, ErpSalesOrderFinanceEntity> financeMap = new LinkedHashMap<>();
+        for (ErpSalesOrderEntity order : request) {
+            if (order == null || order.getFid() == null || order.getFinanceEntity() == null
+                    || order.getFinanceEntity().getEntryId() == null) {
+                continue;
+            }
+            ErpSalesOrderFinanceEntity finance = order.getFinanceEntity();
+            financeMap.put(finance.getEntryId(), finance);
+            finance.setPid(order.getFid());
         }
-        if (CollUtil.isNotEmpty(updateList)) {
-            this.updateBatchById(updateList);
+        if (financeMap.isEmpty()) {
+            return;
+        }
+
+        List<ErpSalesOrderFinanceEntity> finances = List.copyOf(financeMap.values());
+        for (int fromIndex = 0; fromIndex < finances.size(); fromIndex += UPSERT_BATCH_SIZE) {
+            int toIndex = Math.min(fromIndex + UPSERT_BATCH_SIZE, finances.size());
+            financeMapper.upsertBatch(finances.subList(fromIndex, toIndex));
         }
     }
 }

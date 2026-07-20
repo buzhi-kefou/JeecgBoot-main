@@ -16,6 +16,11 @@
 			<artifactId>jeecg-system-local-api</artifactId>
 		</dependency>
 		<dependency>
+			<groupId>cn.hutool</groupId>
+			<artifactId>hutool-all</artifactId>
+			<version>5.8.25</version>
+		</dependency>
+		<dependency>
 			<groupId>org.hibernate</groupId>
 			<artifactId>hibernate-core</artifactId>
 		</dependency>

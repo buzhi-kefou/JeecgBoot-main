@@ -1,5 +1,6 @@
 package org.jeecg.modules.erp.entity;
 
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -7,6 +8,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
 
 /**
  * 金蝶云·星空 销售订单 DTO
@@ -36,19 +39,19 @@ public class ErpSalesOrderEntity extends ErpCommonEntity {
     private String documentStatus;
 
     /** 销售组织（必填项） */
-    @JsonProperty("FSaleOrgId")
+    @JsonProperty("FSaleOrgId.fname")
     private String saleOrgId;
 
     /** 日期（必填项） */
     @JsonProperty("FDate")
-    private String date;
+    private LocalDateTime date;
 
     /** 客户（必填项） */
-    @JsonProperty("FCustId")
+    @JsonProperty("FCustId.fname")
     private String custId;
 
     /** 销售部门 */
-    @JsonProperty("FSaleDeptId")
+    @JsonProperty("FSaleDeptId.fname")
     private String saleDeptId;
 
     /** 销售组 */
@@ -56,11 +59,11 @@ public class ErpSalesOrderEntity extends ErpCommonEntity {
     private String saleGroupId;
 
     /** 销售员（必填项） */
-    @JsonProperty("FSalerId")
+    @JsonProperty("FSalerId.fname")
     private String salerId;
 
     /** 收货方 */
-    @JsonProperty("FReceiveId")
+    @JsonProperty("FReceiveId.fname")
     private String receiveId;
 
     /** 结算方 */
@@ -76,28 +79,28 @@ public class ErpSalesOrderEntity extends ErpCommonEntity {
     private String chargeId;
 
     /** 创建人 */
-    @JsonProperty("FCreatorId")
+    @JsonProperty("FCreatorId.fname")
     private String creatorId;
 
     /** 创建日期 */
     @JsonProperty("FCreateDate")
-    private String createDate;
+    private LocalDateTime createDate;
 
     /** 最后修改人 */
-    @JsonProperty("FModifierId")
+    @JsonProperty("FModifierId.fname")
     private String modifierId;
 
     /** 最后修改日期 */
     @JsonProperty("FModifyDate")
-    private String modifyDate;
+    private LocalDateTime modifyDate;
 
     /** 审核人 */
-    @JsonProperty("FApproverId")
+    @JsonProperty("FApproverId.fname")
     private String approverId;
 
     /** 审核日期 */
     @JsonProperty("FApproveDate")
-    private String approveDate;
+    private LocalDateTime approveDate;
 
     /** 关闭状态 */
     @JsonProperty("FCloseStatus")
@@ -109,7 +112,7 @@ public class ErpSalesOrderEntity extends ErpCommonEntity {
 
     /** 关闭日期 */
     @JsonProperty("FCloseDate")
-    private String closeDate;
+    private LocalDateTime closeDate;
 
     /** 作废状态 */
     @JsonProperty("FCancelStatus")
@@ -121,7 +124,7 @@ public class ErpSalesOrderEntity extends ErpCommonEntity {
 
     /** 作废日期 */
     @JsonProperty("FCancelDate")
-    private String cancelDate;
+    private LocalDateTime cancelDate;
 
     /** 版本号 */
     @JsonProperty("FVersionNo")
@@ -133,14 +136,14 @@ public class ErpSalesOrderEntity extends ErpCommonEntity {
 
     /** 变更日期 */
     @JsonProperty("FChangeDate")
-    private String changeDate;
+    private LocalDateTime changeDate;
 
     /** 变更原因 */
     @JsonProperty("FChangeReason")
     private String changeReason;
 
     /** 单据类型（必填项） */
-    @JsonProperty("FBillTypeID")
+    @JsonProperty("FBillTypeID.fname")
     private String billTypeId;
 
     /** 业务类型 */
@@ -148,7 +151,7 @@ public class ErpSalesOrderEntity extends ErpCommonEntity {
     private String businessType;
 
     /** 交货方式 */
-    @JsonProperty("FHeadDeliveryWay")
+    @JsonProperty("FHeadDeliveryWay.fnumber")
     private String headDeliveryWay;
 
     /** 收货方地址 */
@@ -164,7 +167,7 @@ public class ErpSalesOrderEntity extends ErpCommonEntity {
     private String creditCheckResult;
 
     /** 对应组织 */
-    @JsonProperty("FCorrespondOrgId")
+    @JsonProperty("FCorrespondOrgId.fname")
     private String correspondOrgId;
 
     /** 收货方联系人 */
@@ -270,11 +273,11 @@ public class ErpSalesOrderEntity extends ErpCommonEntity {
     // ==================== 自定义字段 ====================
 
     /** 订单类型 */
-    @JsonProperty("F_ZGHY_DDLX")
+    @JsonProperty("F_ZGHY_DDLX.fcaption")
     private String zghyDdlx;
 
     /** 内外销 */
-    @JsonProperty("F_ZGHY_NWX")
+    @JsonProperty("F_ZGHY_NWX.fcaption")
     private String zghyNwx;
 
     /** 客户订单号 */
@@ -362,11 +365,11 @@ public class ErpSalesOrderEntity extends ErpCommonEntity {
     private String zghyYdzl;
 
     /** 运抵国 */
-    @JsonProperty("F_ZGHY_FYDG")
+    @JsonProperty("F_ZGHY_FYDG.fname")
     private String zghyFydg;
 
     /** 目的国 */
-    @JsonProperty("F_ZGHY_FMDG")
+    @JsonProperty("F_ZGHY_FMDG.fname")
     private String zghyFmdg;
 
     /** 目的港口 */
@@ -507,7 +510,7 @@ public class ErpSalesOrderEntity extends ErpCommonEntity {
 
     /** 结算日期 */
     @JsonProperty("F_ZGHY_JSRQ")
-    private String zghyJsrq;
+    private LocalDateTime zghyJsrq;
 
     /** BOM维护标志 */
     @JsonProperty("F_ZGHY_BOMWH")
@@ -534,7 +537,7 @@ public class ErpSalesOrderEntity extends ErpCommonEntity {
     private String zghyDz;
 
     /** 运抵洲 */
-    @JsonProperty("F_UKPT_YDZ")
+    @JsonProperty("F_UKPT_YDZ.FDataValue")
     private String ukptYdz;
 
     /** 独立项目 */
@@ -563,7 +566,7 @@ public class ErpSalesOrderEntity extends ErpCommonEntity {
 
     /** 反关闭日期 */
     @JsonProperty("FAntiCloseDate")
-    private String antiCloseDate;
+    private LocalDateTime antiCloseDate;
 
     /** 终端客户 */
     @JsonProperty("F_UKPT_Text_qtr")
@@ -572,4 +575,7 @@ public class ErpSalesOrderEntity extends ErpCommonEntity {
     /** 触发状态 */
     @JsonProperty("F_LC_CFZT")
     private String lcCfzt;
+
+    @TableField(exist = false)
+    private ErpSalesOrderFinanceEntity financeEntity;
 }

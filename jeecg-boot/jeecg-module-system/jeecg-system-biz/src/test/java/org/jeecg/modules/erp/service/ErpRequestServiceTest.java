@@ -17,11 +17,15 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -169,6 +173,62 @@ class ErpRequestServiceTest {
                 "[[\"SO-1\",null,null]]", fields, ErpSalesOrderEntity.class);
 
         assertEquals(null, rows.get(0).getFinanceEntity());
+    }
+
+    @Test
+    void parseRowsConvertsIsoDateTimeWithFractionalSeconds() {
+        List<ErpSalesOrderEntity> rows = ErpRequestService.parseRows(
+                "[[\"SO-1\",\"2022-09-03T10:59:38.07\"]]",
+                "FID,FCreateDate", ErpSalesOrderEntity.class);
+
+        assertEquals(LocalDateTime.of(2022, 9, 3, 10, 59, 38, 70_000_000),
+                rows.get(0).getCreateDate());
+    }
+
+    @Test
+    void parseRowsConvertsBlankDateTimeToNull() {
+        List<ErpSalesOrderEntity> rows = ErpRequestService.parseRows(
+                "[[\"SO-1\",\"\"]]", "FID,FCreateDate", ErpSalesOrderEntity.class);
+
+        assertNull(rows.get(0).getCreateDate());
+    }
+
+    @Test
+    void parseRowsReportsFieldWhenDateTimeConversionFails() {
+        IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class, () ->
+                ErpRequestService.parseRows("[[\"SO-1\",\"not-a-date\"]]",
+                        "FID,FCreateDate", ErpSalesOrderEntity.class));
+
+        assertTrue(thrown.getMessage().contains("FCreateDate"));
+        assertTrue(thrown.getMessage().contains("createDate"));
+        assertTrue(thrown.getMessage().contains("not-a-date"));
+    }
+
+    @Test
+    void parseRowsConvertsAllSalesOrderDateTimeFields() {
+        String fields = "FID,FDate,FCreateDate,FModifyDate,FApproveDate,FCloseDate,"
+                + "FCancelDate,FChangeDate,F_ZGHY_JSRQ,FAntiCloseDate,F_ZGHY_ZYQX";
+        String value = "2022-09-03T10:59:38.07";
+        List<ErpSalesOrderEntity> rows = ErpRequestService.parseRows(
+                "[[\"SO-1\",\"" + value + "\",\"" + value + "\",\"" + value
+                        + "\",\"" + value + "\",\"" + value + "\",\"" + value
+                        + "\",\"" + value + "\",\"" + value + "\",\"" + value
+                        + "\",\"30天内\"]]",
+                fields, ErpSalesOrderEntity.class);
+
+        LocalDateTime expected = LocalDateTime.of(2022, 9, 3, 10, 59, 38, 70_000_000);
+        ErpSalesOrderEntity order = rows.get(0);
+        assertAll(
+                () -> assertEquals(expected, order.getDate()),
+                () -> assertEquals(expected, order.getCreateDate()),
+                () -> assertEquals(expected, order.getModifyDate()),
+                () -> assertEquals(expected, order.getApproveDate()),
+                () -> assertEquals(expected, order.getCloseDate()),
+                () -> assertEquals(expected, order.getCancelDate()),
+                () -> assertEquals(expected, order.getChangeDate()),
+                () -> assertEquals(expected, order.getZghyJsrq()),
+                () -> assertEquals(expected, order.getAntiCloseDate()),
+                () -> assertEquals("30天内", order.getZghyZyqx()));
     }
 
     private static ErpRequestService service(RestTemplate restTemplate,
