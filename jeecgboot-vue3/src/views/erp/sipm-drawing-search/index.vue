@@ -18,8 +18,8 @@
           />
         </div>
         <div class="sipm-search__meta">
-          <span class="sipm-search__count">{{ total }}</span>
-          <span class="sipm-search__label">张图纸</span>
+          <span class="sipm-search__engineer-count">{{ records.length }} 张工程图纸</span>
+          <span class="sipm-search__design-count">{{ designRecords.length }} 张2D图纸</span>
           <span v-if="selectedRecord?.objNo" class="sipm-search__current">当前：{{ selectedRecord.objNo }}</span>
         </div>
       </section>
@@ -79,31 +79,53 @@
       </section>
 
       <section class="sipm-content">
-        <div class="sipm-content__header">
-          <div>
-            <div class="sipm-content__title">关联图纸</div>
-            <div class="sipm-content__subtitle">选择一行右侧预览，预览结果将在弹窗中打开</div>
-          </div>
-        </div>
-        <div class="sipm-table">
-          <a-table
-            row-key="objId"
-            size="small"
-            bordered
-            :columns="columns"
-            :data-source="records"
-            :loading="loading"
-            :pagination="{ pageSize: 20, showSizeChanger: true, showTotal: (count) => `共 ${count} 条` }"
-            :scroll="tableScroll"
-            :row-class-name="getRowClassName"
-          >
-            <template #bodyCell="{ column, record }">
-              <template v-if="column.dataIndex === 'preview'">
-                <a-button type="link" size="small" :disabled="!record.objId" @click="handlePreview(record)">预览</a-button>
-              </template>
-            </template>
-          </a-table>
-        </div>
+        <a-tabs v-model:active-key="activeTab" class="sipm-content__tabs">
+          <a-tab-pane key="drawings">
+            <template #tab>工程图纸（{{ records.length }}）</template>
+            <!--            <div class="sipm-content__subtitle">选择一行右侧预览，预览结果将在弹窗中打开</div>-->
+            <div class="sipm-table">
+              <a-table
+                row-key="objId"
+                size="small"
+                bordered
+                :columns="drawingColumns"
+                :data-source="records"
+                :loading="loading"
+                :pagination="{ pageSize: 20, showSizeChanger: true, showTotal: (count) => `共 ${count} 条` }"
+                :scroll="drawingTableScroll"
+                :row-class-name="getRowClassName"
+              >
+                <template #bodyCell="{ column, record }">
+                  <template v-if="column.dataIndex === 'preview'">
+                    <a-button type="link" size="small" :disabled="!record.objId" @click="handlePreview(record, 'DWGPE')">预览</a-button>
+                  </template>
+                </template>
+              </a-table>
+            </div>
+          </a-tab-pane>
+          <a-tab-pane key="designs">
+            <template #tab>2D图纸（{{ designRecords.length }}）</template>
+            <!--            <div class="sipm-content__subtitle">展示物料关联的设计数据</div>-->
+            <div class="sipm-table">
+              <a-table
+                row-key="objId"
+                size="small"
+                bordered
+                :columns="designColumns"
+                :data-source="designRecords"
+                :loading="loading"
+                :pagination="{ pageSize: 20, showSizeChanger: true, showTotal: (count) => `共 ${count} 条` }"
+                :scroll="designTableScroll"
+              >
+                <template #bodyCell="{ column, record }">
+                  <template v-if="column.dataIndex === 'preview'">
+                    <a-button type="link" size="small" :disabled="!record.objId" @click="handlePreview(record, 'DESF2')">预览</a-button>
+                  </template>
+                </template>
+              </a-table>
+            </div>
+          </a-tab-pane>
+        </a-tabs>
       </section>
 
       <a-modal
@@ -115,29 +137,33 @@
         wrap-class-name="sipm-preview-modal"
         @after-close="handlePreviewClose"
       >
-        <div class="sipm-preview-modal__toolbar">
-          <div class="sipm-preview-modal__name">{{ selectedRecord?.name || selectedRecord?.objNo || '图纸预览' }}</div>
-          <div class="sipm-preview-modal__actions">
-            <a-button size="small" :disabled="!canAdjustPreview" @click="zoomOutPreview">缩小</a-button>
-            <a-button size="small" :disabled="!canAdjustPreview" @click="zoomInPreview">放大</a-button>
-            <a-button size="small" :disabled="!canAdjustPreview" @click="fitPreview">适配</a-button>
-            <a-button size="small" :disabled="!canAdjustPreview" @click="actualSizePreview">100%</a-button>
-            <span class="sipm-preview-modal__scale">{{ Math.round(previewScale * 100) }}%</span>
-            <a-button v-if="previewBlobUrl" type="link" size="small" @click="openPreview">新窗口打开</a-button>
+        <div class="sipm-preview-modal__preview" :class="{ 'is-fullscreen': previewFullscreen }">
+          <div class="sipm-preview-modal__toolbar">
+            <div class="sipm-preview-modal__name">{{ selectedRecord?.name || selectedRecord?.objNo || '图纸预览' }}</div>
+            <div class="sipm-preview-modal__actions">
+              <a-button size="small" :disabled="!canAdjustPreview" @click="zoomOutPreview">缩小</a-button>
+              <a-button size="small" :disabled="!canAdjustPreview" @click="zoomInPreview">放大</a-button>
+              <a-button size="small" :disabled="!canAdjustPreview" @click="fitPreview">适配</a-button>
+              <a-button size="small" :disabled="!canAdjustPreview" @click="actualSizePreview">100%</a-button>
+              <span class="sipm-preview-modal__scale">{{ Math.round(previewScale * 100) }}%</span>
+              <a-button v-if="previewBlobUrl" type="link" size="small" @click="togglePreviewFullscreen">
+                {{ previewFullscreen ? '取消全屏' : '全屏' }}
+              </a-button>
+            </div>
           </div>
-        </div>
-        <div
-          ref="previewViewportRef"
-          class="sipm-preview-modal__body"
-          :class="{ 'is-dragging': previewDragging }"
-          @wheel.prevent="handlePreviewWheel"
-          @mousedown="handlePreviewDragStart"
-        >
-          <a-spin v-if="previewLoading" tip="图纸加载中..." />
-          <div v-show="!previewLoading && !previewError && previewMode" class="sipm-preview-modal__stage" :style="previewStageStyle">
-            <canvas ref="previewCanvasRef" class="sipm-preview-modal__canvas"></canvas>
+          <div
+            ref="previewViewportRef"
+            class="sipm-preview-modal__body"
+            :class="{ 'is-dragging': previewDragging }"
+            @wheel.prevent="handlePreviewWheel"
+            @mousedown="handlePreviewDragStart"
+          >
+            <a-spin v-if="previewLoading" tip="图纸加载中..." />
+            <div v-show="!previewLoading && !previewError && previewMode" class="sipm-preview-modal__stage" :style="previewStageStyle">
+              <canvas ref="previewCanvasRef" class="sipm-preview-modal__canvas"></canvas>
+            </div>
+            <a-empty v-if="!previewLoading && previewError" :description="previewError" />
           </div>
-          <a-empty v-if="!previewLoading && previewError" :description="previewError" />
         </div>
       </a-modal>
     </div>
@@ -157,7 +183,14 @@
   import { PageWrapper } from '/@/components/Page';
   import { useWindowSizeFn } from '/@/hooks/event/useWindowSizeFn';
   import { useMessage } from '/@/hooks/web/useMessage';
-  import { getSipmDrawingImageBlob, querySipmDrawingList, SipmDrawingListResult, SipmDrawingRecord, SipmPartRecord } from './sipm-drawing.api';
+  import {
+    getSipmDrawingImageBlob,
+    querySipmDrawingList,
+    SipmDesignRecord,
+    SipmDrawingListResult,
+    SipmDrawingRecord,
+    SipmPartRecord,
+  } from './sipm-drawing.api';
 
   const pdfWorkerBlobUrl = typeof window === 'undefined' ? '' : URL.createObjectURL(new Blob([pdfWorkerSource], { type: 'text/javascript' }));
   if (pdfWorkerBlobUrl) {
@@ -165,17 +198,21 @@
   }
 
   const { createMessage } = useMessage();
+  type SipmPreviewType = 'DWGPE' | 'DESF2';
 
   const searchNo = ref(null);
   const loading = ref(false);
+  const activeTab = ref<'drawings' | 'designs'>('drawings');
+  const designRecords = ref<SipmDesignRecord[]>([]);
   const records = ref<SipmDrawingRecord[]>([]);
   const partInfo = ref<SipmPartRecord | null>(null);
-  const selectedRecord = ref<SipmDrawingRecord | null>(null);
+  const selectedRecord = ref<SipmDrawingRecord | SipmDesignRecord | null>(null);
   const previewBlobUrl = ref('');
   const previewError = ref('');
   const previewLoading = ref(false);
   const previewMode = ref<'pdf' | 'image' | ''>('');
   const previewOpen = ref(false);
+  const previewFullscreen = ref(false);
   const previewCanvasRef = ref<HTMLCanvasElement | null>(null);
   const previewViewportRef = ref<HTMLDivElement | null>(null);
   const previewScale = ref(1);
@@ -185,7 +222,6 @@
   const previewDragging = ref(false);
   const previewDragStart = reactive({ x: 0, y: 0, offsetX: 0, offsetY: 0 });
 
-  const total = computed(() => records.value.length);
   const isDesktopViewport = computed(() => viewportWidth.value > 1024);
   const previewTitle = computed(() => `图纸预览${selectedRecord.value?.objNo ? ` - ${selectedRecord.value.objNo}` : ''}`);
   const canAdjustPreview = computed(() => !previewLoading.value && !previewError.value && !!previewMode.value);
@@ -205,7 +241,7 @@
     modifier: partInfo.value?.modifier || '',
   }));
 
-  const columns = [
+  const drawingColumns = [
     { title: '图号', dataIndex: 'objNo', width: 170 },
     { title: '图纸名称', dataIndex: 'name', width: 140 },
     { title: '文件名', dataIndex: 'fname', width: 220, ellipsis: true },
@@ -218,9 +254,26 @@
     { title: '预览', dataIndex: 'preview', width: 80, fixed: 'right', align: 'center' },
   ];
 
-  const tableScroll = computed(() => ({
-    x: columns.reduce((sum, column) => sum + getColumnWidth(column.width), 0),
-    y: isDesktopViewport.value ? 'calc(100vh - 420px)' : undefined,
+  const designColumns = [
+    { title: '图号', dataIndex: 'objNo', width: 170 },
+    { title: '图纸名称', dataIndex: 'name', width: 140 },
+    { title: '文件名', dataIndex: 'fname', width: 100, ellipsis: true },
+    { title: '后缀', dataIndex: 'suffix', width: 80, align: 'center' },
+    { title: '文件大小', dataIndex: 'fsizeStr', width: 100 },
+    { title: '创建时间', dataIndex: 'ctimestr', width: 150 },
+    { title: '修改时间', dataIndex: 'mtimestr', width: 150 },
+    { title: '创建人', dataIndex: 'creator', width: 180, ellipsis: true },
+    { title: '修改人', dataIndex: 'modifier', width: 180, ellipsis: true },
+    { title: '预览', dataIndex: 'preview', width: 80, fixed: 'right', align: 'center' },
+  ];
+
+  const drawingTableScroll = computed(() => ({
+    x: drawingColumns.reduce((sum, column) => sum + getColumnWidth(column.width), 0),
+    y: isDesktopViewport.value ? 'calc(100vh - 460px)' : undefined,
+  }));
+  const designTableScroll = computed(() => ({
+    x: designColumns.reduce((sum, column) => sum + getColumnWidth(column.width), 0),
+    y: isDesktopViewport.value ? 'calc(100vh - 460px)' : undefined,
   }));
 
   useWindowSizeFn(
@@ -252,16 +305,19 @@
     resetPreviewBlob();
     previewError.value = '';
     partInfo.value = null;
+    designRecords.value = [];
     selectedRecord.value = null;
     try {
       const result = await querySipmDrawingList({ no, start: 0, size: -1 });
       const listResult = normalizeListResult(result);
       partInfo.value = listResult.part || null;
+      designRecords.value = listResult.designs || [];
       records.value = listResult.drawings || listResult.list || [];
+      activeTab.value = records.value.length ? 'drawings' : designRecords.value.length ? 'designs' : 'drawings';
       if (listResult.errcode && listResult.errcode !== 0) {
         createMessage.warning(listResult.errmsg || '查询失败');
-      } else if (!records.value.length) {
-        createMessage.info('未查询到图纸记录');
+      } else if (!records.value.length && !designRecords.value.length) {
+        createMessage.info('未查询到工程图纸和2D图纸记录');
       }
     } finally {
       loading.value = false;
@@ -272,13 +328,13 @@
     if (Array.isArray(result)) {
       return { list: result, total: result.length, errcode: 0 };
     }
-    if (Array.isArray(result?.drawings)) {
+    if (Array.isArray(result?.drawings) || Array.isArray(result?.designs)) {
       return result;
     }
     if (Array.isArray(result?.list)) {
       return result;
     }
-    if (Array.isArray(result?.result?.drawings)) {
+    if (Array.isArray(result?.result?.drawings) || Array.isArray(result?.result?.designs)) {
       return result.result;
     }
     if (Array.isArray(result?.result?.list)) {
@@ -287,7 +343,7 @@
     return { list: [], total: 0, errcode: result?.errcode, errmsg: result?.errmsg };
   }
 
-  async function handlePreview(record: SipmDrawingRecord) {
+  async function handlePreview(record: SipmDrawingRecord | SipmDesignRecord, type: SipmPreviewType) {
     if (!record.objId) {
       createMessage.warning('当前记录缺少对象ID');
       return;
@@ -300,7 +356,7 @@
     await nextTick();
     try {
       await waitForPreviewCanvas();
-      const response = await getSipmDrawingImageBlob(record.objId);
+      const response = await getSipmDrawingImageBlob(record.objId, type);
       const blob = response.data;
       if (!blob || blob.size === 0) {
         previewError.value = '未获取到图纸文件流';
@@ -326,13 +382,14 @@
     }
   }
 
-  function openPreview() {
-    if (previewBlobUrl.value) {
-      window.open(previewBlobUrl.value, '_blank');
-    }
+  async function togglePreviewFullscreen() {
+    previewFullscreen.value = !previewFullscreen.value;
+    await nextTick();
+    window.requestAnimationFrame(fitCanvasToPreviewViewport);
   }
 
   function handlePreviewClose() {
+    previewFullscreen.value = false;
     resetPreviewBlob();
     previewError.value = '';
     resetPreviewTransform();
@@ -464,6 +521,25 @@
   }
 
   function fitPreview() {
+    fitCanvasToPreviewViewport();
+  }
+
+  function fitCanvasToPreviewViewport() {
+    const canvas = previewCanvasRef.value;
+    const previewBody = previewViewportRef.value;
+    if (!canvas || !previewBody || !canvas.width || !canvas.height) {
+      return;
+    }
+    const availableWidth = Math.max(previewBody.clientWidth - 24, 1);
+    const availableHeight = Math.max(previewBody.clientHeight - 24, 1);
+    const aspectRatio = canvas.width / canvas.height;
+    if (availableWidth / availableHeight < aspectRatio) {
+      previewBaseSize.width = availableWidth;
+      previewBaseSize.height = availableWidth / aspectRatio;
+    } else {
+      previewBaseSize.height = availableHeight;
+      previewBaseSize.width = availableHeight * aspectRatio;
+    }
     previewScale.value = 1;
     previewOffset.x = 0;
     previewOffset.y = 0;
@@ -733,25 +809,41 @@
     box-shadow: 0 10px 24px rgba(26, 52, 69, 0.08);
   }
 
-  .sipm-content__header {
+  .sipm-content__tabs {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex: none;
-    padding: 12px 14px;
-    border-bottom: 1px solid #d9e4ea;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
   }
 
-  .sipm-content__title {
-    font-size: 15px;
-    font-weight: 800;
-    color: #102736;
+  .sipm-content__tabs :deep(.ant-tabs-nav) {
+    flex: none;
+    padding: 0 14px;
+    margin-bottom: 0;
+  }
+
+  .sipm-content__tabs :deep(.ant-tabs-content-holder),
+  .sipm-content__tabs :deep(.ant-tabs-content),
+  .sipm-content__tabs :deep(.ant-tabs-tabpane) {
+    min-height: 0;
+    height: 100%;
+  }
+
+  .sipm-content__tabs :deep(.ant-tabs-content-holder) {
+    flex: 1;
+  }
+
+  .sipm-content__tabs :deep(.ant-tabs-tabpane) {
+    display: flex;
+    flex-direction: column;
   }
 
   .sipm-content__subtitle {
-    margin-top: 2px;
+    flex: none;
+    padding: 8px 14px;
     font-size: 12px;
     color: #6a7f8d;
+    border-bottom: 1px solid #d9e4ea;
   }
 
   .sipm-table {
@@ -802,6 +894,19 @@
     white-space: nowrap;
   }
 
+  .sipm-preview-modal__preview {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .sipm-preview-modal__preview.is-fullscreen .sipm-preview-modal__body {
+    flex: 1;
+    height: auto;
+    min-height: 0;
+  }
+
   .sipm-preview-modal__toolbar {
     display: flex;
     align-items: center;
@@ -810,26 +915,6 @@
     min-height: 36px;
     padding: 0 2px 8px;
     color: #64748b;
-  }
-
-  :deep(.sipm-preview-modal .ant-modal) {
-    top: 24px;
-    max-width: calc(100vw - 32px);
-    padding-bottom: 0;
-  }
-
-  :deep(.sipm-preview-modal .ant-modal-content) {
-    height: calc(100vh - 48px);
-    display: flex;
-    flex-direction: column;
-  }
-
-  :deep(.sipm-preview-modal .ant-modal-body) {
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    min-height: 0;
-    padding: 10px 16px 16px;
   }
 
   .sipm-preview-modal__name {
@@ -1107,11 +1192,12 @@
       overflow-wrap: anywhere;
     }
 
-    .sipm-content__header {
-      padding: 10px 12px;
+    .sipm-content__tabs :deep(.ant-tabs-nav) {
+      padding: 0 12px;
     }
 
     .sipm-content__subtitle {
+      padding: 8px 12px;
       line-height: 1.35;
     }
 
@@ -1164,5 +1250,41 @@
       max-width: calc(100vw - 40px);
       max-height: calc(100dvh - 220px);
     }
+  }
+</style>
+
+<style lang="less">
+  .sipm-preview-modal .ant-modal {
+    top: 24px;
+    max-width: calc(100vw - 32px);
+    padding-bottom: 0;
+  }
+
+  .sipm-preview-modal .ant-modal-content {
+    display: flex;
+    height: calc(100vh - 48px);
+    flex-direction: column;
+  }
+
+  .sipm-preview-modal .ant-modal-body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+    padding: 10px 16px 16px;
+  }
+
+  .sipm-preview-modal:has(.sipm-preview-modal__preview.is-fullscreen) .ant-modal {
+    top: 0 !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    padding-bottom: 0;
+    margin: 0 !important;
+  }
+
+  .sipm-preview-modal:has(.sipm-preview-modal__preview.is-fullscreen) .ant-modal-content {
+    height: 100vh !important;
+    height: 100dvh !important;
+    border-radius: 0;
   }
 </style>

@@ -36,6 +36,7 @@ public class ErpSipmServiceImpl implements IErpSipmService {
     private static final String SEARCH_PATH = BASE_URL + "/sipmweb/api/{rid}/search/{table}/filter";
 
     private static final String TABLE_PART = "MPART";
+    private static final String TABLE_DES = "DESF2";
     private static final String TABLE_DRAWING = "DWGPE";
 
     private static final String USERNAME = "adm";
@@ -111,10 +112,32 @@ public class ErpSipmServiceImpl implements IErpSipmService {
 
         List<Object> partList = extractList(partResult);
         if (partList.isEmpty()) {
-            return buildSplitResult(null, List.of());
+            return buildSplitResult(null, List.of(), List.of());
         }
 
         Object firstPart = partList.get(0);
+        List<Object> designList = new ArrayList<>();
+        for (Object partItem : partList) {
+            if (!(partItem instanceof Map<?, ?> partRow)) {
+                continue;
+            }
+            String photoNo = extractPhotoNo(partRow);
+            if (StrUtil.isBlank(photoNo)) {
+                continue;
+            }
+            Object designResult = searchByToken(token, TABLE_DES, buildNoFilter(photoNo), start, size, false);
+            if (isRequestFailed(designResult)) {
+                log.warn("SIPM设计数据查询失败，清理缓存token后重试一次，photoNo:{}，响应:{}", photoNo, designResult);
+                cachedToken = null;
+                token = refreshToken();
+                designResult = searchByToken(token, TABLE_DES, buildNoFilter(photoNo), start, size, false);
+            }
+            if (isRequestFailed(designResult)) {
+                return designResult;
+            }
+            designList.addAll(extractList(designResult));
+        }
+
         List<Object> drawingList = new ArrayList<>();
         for (Object partItem : partList) {
             if (!(partItem instanceof Map<?, ?> partRow)) {
@@ -136,7 +159,7 @@ public class ErpSipmServiceImpl implements IErpSipmService {
             }
             drawingList.addAll(extractList(drawingResult));
         }
-        return buildSplitResult(firstPart, drawingList);
+        return buildSplitResult(firstPart, designList, drawingList);
     }
 
     private Object searchByToken(String token, String table, String filter, Integer start, Integer size, boolean includeExtra) {
@@ -186,9 +209,10 @@ public class ErpSipmServiceImpl implements IErpSipmService {
         return result;
     }
 
-    private Map<String, Object> buildSplitResult(Object part, List<Object> drawings) {
+    private Map<String, Object> buildSplitResult(Object part, List<Object> designs, List<Object> drawings) {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("part", part);
+        result.put("designs", designs);
         result.put("drawings", drawings);
         result.put("errcode", 0);
         result.put("errmsg", null);
@@ -201,23 +225,26 @@ public class ErpSipmServiceImpl implements IErpSipmService {
         if (StrUtil.isBlank(id)) {
             throw new IllegalArgumentException("图片ID不能为空");
         }
+        if (!TABLE_DRAWING.equals(type) && !TABLE_DES.equals(type)) {
+            throw new IllegalArgumentException("不支持的SIPM附件类型");
+        }
         String token = auth();
-        ResponseEntity<byte[]> response = downloadByToken(token, id.trim());
+        ResponseEntity<byte[]> response = downloadByToken(token, id.trim(), type);
         if (isDownloadTokenFailed(response)) {
-            log.warn("SIPM附件下载疑似token失效，清理缓存token后重试一次，id:{}", id);
+            log.warn("SIPM附件下载疑似token失效，清理缓存token后重试一次，id:{}，type:{}", id, type);
             cachedToken = null;
             token = refreshToken();
-            response = downloadByToken(token, id.trim());
+            response = downloadByToken(token, id.trim(), type);
         }
 //        saveDownloadFile(response, id.trim());
         return buildDownloadResponse(response);
     }
 
-    private ResponseEntity<byte[]> downloadByToken(String token, String id) {
+    private ResponseEntity<byte[]> downloadByToken(String token, String id, String type) {
         URI uri = UriComponentsBuilder.fromUriString(DOWNLOAD_PATH)
                 .queryParam("rid", token)
                 .queryParam("id", id)
-                .queryParam("t", "DWGPE")
+                .queryParam("t", type)
                 .queryParam("type", "BD")
                 .build()
                 .encode()
